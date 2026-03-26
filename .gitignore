@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+frontend/node_modules/
+
+# build outputs
+dist/
+frontend/dist/
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# runtime data
+runtime/
+*.log
+
+# test/coverage
+coverage/
+.vitest/
+
+# editor & OS
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum HashType {
+  md5
+  sha1
+  sha256
+  blake3
+}
+
+enum ScanStatus {
+  pending
+  scanned
+  changed
+  missing
+  error
+}
+
+enum SyncMode {
+  archive
+  mirror
+}
+
+enum HealthStatus {
+  healthy
+  warning
+  full
+  unavailable
+}
+
+enum MappingRemoteRole {
+  primary
+  backup
+  shard
+}
+
+enum FileSyncStatus {
+  pending
+  synced
+  failed
+  deleted
+  verifying
+}
+
+enum JobType {
+  scan
+  sync
+  verify
+  migrate
+  rename_detect
+  cleanup
+}
+
+enum JobStatus {
+  queued
+  running
+  success
+  failed
+  cancelled
+}
+
+enum OperationType {
+  create
+  update
+  rename
+  migrate
+  delete
+  verify
+  sync
+}
+
+enum TargetType {
+  file
+  mapping_task
+  remote
+  sync_job
+  file_location
+}
+
+model File {
+  id            BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  fileHash      String     @map("file_hash") @db.VarChar(128)
+  md5Hash       String?    @map("md5_hash") @db.VarChar(32)
+  sha1Hash      String?    @map("sha1_hash") @db.VarChar(40)
+  hashType      HashType   @map("hash_type")
+  fileSize      BigInt     @map("file_size") @db.UnsignedBigInt
+  modifiedTime  DateTime   @map("modified_time") @db.DateTime(3)
+  localPath     String     @map("local_path") @db.VarChar(512)
+  relativePath  String     @map("relative_path") @db.VarChar(512)
+  mappingTaskId BigInt     @map("mapping_task_id") @db.UnsignedBigInt
+  scanStatus    ScanStatus @default(pending) @map("scan_status")
+  createdAt     DateTime   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.DateTime(3)
+
+  mappingTask   MappingTask    @relation(fields: [mappingTaskId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  fileLocations FileLocation[]
+
+  @@unique([mappingTaskId, localPath], map: "uniq_files_task_local_path")
+  @@index([mappingTaskId, fileHash], map: "idx_files_task_hash")
+  @@index([mappingTaskId, fileHash, localPath], map: "idx_files_task_hash_local_path")
+  @@index([fileHash], map: "idx_files_hash")
+  @@index([mappingTaskId, scanStatus], map: "idx_files_task_scan_status")
+  @@index([mappingTaskId, fileHash, modifiedTime], map: "idx_files_task_hash_mtime")
+  @@index([mappingTaskId, md5Hash], map: "idx_files_task_md5")
+  @@index([mappingTaskId, sha1Hash], map: "idx_files_task_sha1")
+  @@map("files")
+}
+
+model MappingTask {
+  id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  name              String   @db.VarChar(128)
+  localPath         String   @map("local_path") @db.VarChar(512)
+  syncMode          SyncMode @map("sync_mode")
+  encryptionEnabled Boolean  @default(false) @map("encryption_enabled")
+  redundancyEnabled Boolean  @default(false) @map("redundancy_enabled")
+  splitEnabled      Boolean  @default(false) @map("split_enabled")
+  isActive          Boolean  @default(true) @map("is_active")
+  deletedAt         DateTime? @map("deleted_at") @db.DateTime(3)
+  createdAt         DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  files              File[]
+  mappingTaskRemotes MappingTaskRemote[]
+  syncJobs           SyncJob[]
+
+  @@unique([name], map: "uniq_mapping_tasks_name")
+  @@unique([localPath], map: "uniq_mapping_tasks_local_path")
+  @@index([isActive], map: "idx_mapping_tasks_is_active")
+  @@index([syncMode], map: "idx_mapping_tasks_sync_mode")
+  @@index([deletedAt], map: "idx_mapping_tasks_deleted_at")
+  @@map("mapping_tasks")
+}
+
+model CloudRemote {
+  id               BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  remoteName       String       @map("remote_name") @db.VarChar(128)
+  displayName      String       @map("display_name") @db.VarChar(128)
+  totalCapacity    BigInt       @default(0) @map("total_capacity") @db.UnsignedBigInt
+  usedCapacity     BigInt       @default(0) @map("used_capacity") @db.UnsignedBigInt
+  reservedCapacity BigInt       @default(0) @map("reserved_capacity") @db.UnsignedBigInt
+  warningThresholdPercent Int   @default(85) @map("warning_threshold_percent") @db.UnsignedTinyInt
+  healthStatus     HealthStatus @default(healthy) @map("health_status")
+  isActive         Boolean      @default(true) @map("is_active")
+  lastSyncAt       DateTime?    @map("last_sync_at") @db.DateTime(3)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
+
+  mappingTaskRemotes MappingTaskRemote[]
+  fileLocations      FileLocation[]
+
+  @@unique([remoteName], map: "uniq_cloud_remotes_remote_name")
+  @@index([isActive, healthStatus], map: "idx_cloud_remotes_active_health")
+  @@index([warningThresholdPercent], map: "idx_cloud_remotes_warning_threshold")
+  @@index([lastSyncAt], map: "idx_cloud_remotes_last_sync")
+  @@map("cloud_remotes")
+}
+
+model MappingTaskRemote {
+  id            BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  mappingTaskId BigInt            @map("mapping_task_id") @db.UnsignedBigInt
+  remoteId      BigInt            @map("remote_id") @db.UnsignedBigInt
+  role          MappingRemoteRole
+  priority      Int               @default(100) @db.UnsignedInt
+  createdAt     DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+
+  mappingTask MappingTask @relation(fields: [mappingTaskId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  remote      CloudRemote @relation(fields: [remoteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([mappingTaskId, remoteId], map: "uniq_mapping_task_remote")
+  @@index([mappingTaskId, role, priority], map: "idx_mtr_task_role_priority")
+  @@index([remoteId, role], map: "idx_mtr_remote_role")
+  @@map("mapping_task_remotes")
+}
+
+model FileLocation {
+  id             BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  fileId         BigInt         @map("file_id") @db.UnsignedBigInt
+  remoteId       BigInt         @map("remote_id") @db.UnsignedBigInt
+  remotePath     String         @map("remote_path") @db.VarChar(512)
+  remoteFileName String         @map("remote_file_name") @db.VarChar(255)
+  syncStatus     FileSyncStatus @default(pending) @map("sync_status")
+  lastVerifiedAt DateTime?      @map("last_verified_at") @db.DateTime(3)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+
+  file   File        @relation(fields: [fileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  remote CloudRemote @relation(fields: [remoteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([fileId, remoteId], map: "uniq_file_locations_file_remote")
+  @@unique([remoteId, remotePath], map: "uniq_file_locations_remote_path")
+  @@index([remoteId, syncStatus], map: "idx_file_locations_remote_sync_status")
+  @@index([fileId, syncStatus], map: "idx_file_locations_file_sync_status")
+  @@map("file_locations")
+}
+
+model SyncJob {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  jobType       JobType   @map("job_type")
+  mappingTaskId BigInt    @map("mapping_task_id") @db.UnsignedBigInt
+  status        JobStatus @default(queued)
+  payloadJson   Json?     @map("payload_json")
+  startedAt     DateTime? @map("started_at") @db.DateTime(3)
+  finishedAt    DateTime? @map("finished_at") @db.DateTime(3)
+  errorMessage  String?   @map("error_message") @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+
+  mappingTask MappingTask @relation(fields: [mappingTaskId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([mappingTaskId, createdAt], map: "idx_sync_jobs_task_created")
+  @@index([mappingTaskId, status, createdAt], map: "idx_sync_jobs_task_status_created")
+  @@index([jobType, status], map: "idx_sync_jobs_type_status")
+  @@map("sync_jobs")
+}
+
+model OperationLog {
+  id            BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  operationType OperationType @map("operation_type")
+  targetType    TargetType    @map("target_type")
+  targetId      BigInt?       @map("target_id") @db.UnsignedBigInt
+  message       String        @db.Text
+  metadataJson  Json?         @map("metadata_json")
+  createdAt     DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([targetType, targetId, createdAt], map: "idx_operation_logs_target")
+  @@index([operationType, createdAt], map: "idx_operation_logs_op")
+  @@map("operation_logs")
+}
