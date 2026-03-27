@@ -9,6 +9,7 @@ export type MappingTaskRemoteRecord = {
   remoteId: bigint;
   role: MappingRemoteRole;
   priority: number;
+  remoteBasePath: string;
   remote: {
     id: bigint;
     remoteName: string;
@@ -51,12 +52,14 @@ export type RemoteCapacityRecord = {
 export type MappingRemoteBindingInput = {
   remoteId: bigint;
   priority?: number;
+  remoteBasePath?: string;
 };
 
 export type MappingRemoteBinding = {
   remoteId: bigint;
   role: MappingRemoteRole;
   priority: number;
+  remoteBasePath: string;
 };
 
 export type CreateMappingTaskInput = {
@@ -91,6 +94,7 @@ export interface MappingTaskRepository {
     input: Omit<CreateMappingTaskInput, 'expectedDataSizeBytes' | 'remoteBindings'> & { remoteBindings: MappingRemoteBinding[] }
   ): Promise<MappingTaskRecord>;
   listTasks(query?: MappingTaskListQuery): Promise<MappingTaskRecord[]>;
+  listActiveTaskIds(): Promise<bigint[]>;
   findTaskById(taskId: bigint, query?: Pick<MappingTaskListQuery, 'includeDeleted'>): Promise<MappingTaskRecord | null>;
   updateTask(
     taskId: bigint,
@@ -108,6 +112,7 @@ export type MappingTaskRemoteView = {
   displayName: string;
   role: MappingRemoteRole;
   priority: number;
+  remoteBasePath: string;
   isActive: boolean;
   healthStatus: HealthStatus;
   availableCapacityBytes: string;
@@ -148,6 +153,10 @@ export class MappingTaskService {
     return items.map((item) => this.toView(item));
   }
 
+  async listActiveTaskIds(): Promise<bigint[]> {
+    return this.repository.listActiveTaskIds();
+  }
+
   async getTaskDetail(taskId: bigint, query?: Pick<MappingTaskListQuery, 'includeDeleted'>): Promise<MappingTaskView> {
     const item = await this.repository.findTaskById(taskId, query);
     if (!item) {
@@ -170,7 +179,12 @@ export class MappingTaskService {
     const effectiveRedundancyEnabled = normalized.redundancyEnabled ?? current.redundancyEnabled;
     const effectiveSplitEnabled = normalized.splitEnabled ?? current.splitEnabled;
     const effectiveRemoteBindings =
-      normalized.remoteBindings ?? current.remotes.map((item) => ({ remoteId: item.remoteId, priority: item.priority }));
+      normalized.remoteBindings ??
+      current.remotes.map((item) => ({
+        remoteId: item.remoteId,
+        priority: item.priority,
+        remoteBasePath: item.remoteBasePath
+      }));
 
     const shouldRebuildBindings =
       normalized.remoteBindings !== undefined ||
@@ -414,7 +428,8 @@ export class MappingTaskService {
     return input.remoteBindings.map((item, index) => ({
       remoteId: item.remoteId,
       role: this.resolveRole(index, input.redundancyEnabled, input.splitEnabled),
-      priority: item.priority ?? (index + 1) * 100
+      priority: item.priority ?? (index + 1) * 100,
+      remoteBasePath: this.normalizeRemoteBasePath(item.remoteBasePath)
     }));
   }
 
@@ -440,6 +455,46 @@ export class MappingTaskService {
     return base > remote.usedCapacity ? base - remote.usedCapacity : 0n;
   }
 
+  private normalizeRemoteBasePath(rawPath?: string): string {
+    if (!rawPath) {
+      return '';
+    }
+
+    const trimmed = rawPath.trim();
+    if (!trimmed) {
+      return '';
+    }
+
+    const slashNormalized = trimmed.replace(/\\/g, '/');
+    let normalized = path.posix.normalize(slashNormalized);
+
+    if (normalized === '.' || normalized === '/') {
+      return '';
+    }
+
+    if (normalized.startsWith('/')) {
+      normalized = normalized.replace(/^\/+/, '');
+    }
+
+    if (normalized.endsWith('/')) {
+      normalized = normalized.replace(/\/+$/, '');
+    }
+
+    if (!normalized) {
+      return '';
+    }
+
+    if (normalized === '..' || normalized.startsWith('../')) {
+      throw new AppError({
+        code: 'BAD_REQUEST',
+        message: `remoteBasePath is invalid: ${rawPath}`,
+        statusCode: 400
+      });
+    }
+
+    return normalized;
+  }
+
   private toView(record: MappingTaskRecord): MappingTaskView {
     return {
       id: record.id.toString(),
@@ -449,9 +504,10 @@ export class MappingTaskService {
         remoteId: item.remoteId.toString(),
         remoteName: item.remote.remoteName,
         displayName: item.remote.displayName,
-        role: item.role,
-        priority: item.priority,
-        isActive: item.remote.isActive,
+          role: item.role,
+          priority: item.priority,
+          remoteBasePath: item.remoteBasePath,
+          isActive: item.remote.isActive,
         healthStatus: item.remote.healthStatus,
         availableCapacityBytes: this.computeAvailableCapacity(item.remote).toString()
       })),

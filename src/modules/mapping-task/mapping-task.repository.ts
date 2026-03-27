@@ -59,7 +59,8 @@ export class MappingTaskPrismaRepository {
             data: input.remoteBindings.map((item) => ({
               remoteId: item.remoteId,
               role: item.role,
-              priority: item.priority
+              priority: item.priority,
+              remoteBasePath: item.remoteBasePath
             }))
           }
         }
@@ -78,6 +79,17 @@ export class MappingTaskPrismaRepository {
     });
 
     return items.map((item) => this.toRecord(item as PrismaTask));
+  }
+
+  async listActiveTaskIds(): Promise<bigint[]> {
+    const rows = await this.prisma.mappingTask.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null
+      },
+      select: { id: true }
+    });
+    return rows.map((item) => item.id);
   }
 
   async findTaskById(taskId: bigint, query?: Pick<MappingTaskListQuery, 'includeDeleted'>): Promise<MappingTaskRecord | null> {
@@ -120,7 +132,8 @@ export class MappingTaskPrismaRepository {
             mappingTaskId: taskId,
             remoteId: item.remoteId,
             role: item.role,
-            priority: item.priority
+            priority: item.priority,
+            remoteBasePath: item.remoteBasePath
           }))
         });
       }
@@ -255,6 +268,7 @@ export class MappingTaskPrismaRepository {
         remoteId: link.remoteId,
         role: link.role,
         priority: link.priority,
+        remoteBasePath: link.remoteBasePath,
         remote: {
           id: link.remote.id,
           remoteName: link.remote.remoteName,

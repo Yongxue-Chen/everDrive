@@ -33,6 +33,7 @@ function buildTaskRecord(partial: Partial<MappingTaskRecord> = {}): MappingTaskR
         remoteId: 11n,
         role: 'primary',
         priority: 100,
+        remoteBasePath: '',
         remote: {
           id: 11n,
           remoteName: 'driveA',
@@ -67,6 +68,7 @@ function createRepositoryStub(overrides: Partial<MappingTaskRepository> = {}): M
   return {
     createTask: vi.fn(async () => buildTaskRecord()),
     listTasks: vi.fn(async () => [buildTaskRecord()]),
+    listActiveTaskIds: vi.fn(async () => [100n]),
     findTaskById: vi.fn(async () => buildTaskRecord()),
     updateTask: vi.fn(async () => buildTaskRecord()),
     setTaskActive: vi.fn(async () => buildTaskRecord()),
@@ -95,7 +97,7 @@ describe('MappingTaskService', () => {
     expect(repository.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
         localPath: '/data/photos/2026',
-        remoteBindings: [{ remoteId: 11n, role: 'primary', priority: 100 }]
+        remoteBindings: [{ remoteId: 11n, role: 'primary', priority: 100, remoteBasePath: '' }]
       })
     );
   });
@@ -191,8 +193,8 @@ describe('MappingTaskService', () => {
     expect(repository.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
         remoteBindings: [
-          { remoteId: 11n, role: 'primary', priority: 100 },
-          { remoteId: 22n, role: 'backup', priority: 200 }
+          { remoteId: 11n, role: 'primary', priority: 100, remoteBasePath: '' },
+          { remoteId: 22n, role: 'backup', priority: 200, remoteBasePath: '' }
         ]
       })
     );
@@ -217,9 +219,30 @@ describe('MappingTaskService', () => {
     expect(repository.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
         remoteBindings: [
-          { remoteId: 11n, role: 'shard', priority: 100 },
-          { remoteId: 22n, role: 'shard', priority: 200 }
+          { remoteId: 11n, role: 'shard', priority: 100, remoteBasePath: '' },
+          { remoteId: 22n, role: 'shard', priority: 200, remoteBasePath: '' }
         ]
+      })
+    );
+  });
+
+  it('normalizes remoteBasePath per binding', async () => {
+    const repository = createRepositoryStub();
+    const service = new MappingTaskService(repository);
+
+    await service.createTask({
+      name: 'docs',
+      localPath: '/data/docs',
+      syncMode: 'archive',
+      encryptionEnabled: false,
+      redundancyEnabled: false,
+      splitEnabled: false,
+      remoteBindings: [{ remoteId: 11n, remoteBasePath: '/team//backup/2026/' }]
+    });
+
+    expect(repository.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        remoteBindings: [{ remoteId: 11n, role: 'primary', priority: 100, remoteBasePath: 'team/backup/2026' }]
       })
     );
   });

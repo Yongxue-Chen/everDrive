@@ -5,7 +5,8 @@ const bigintInputSchema = z.union([z.string().regex(/^\d+$/), z.number().int().n
 
 const mappingRemoteBindingSchema = z.object({
   remoteId: bigintInputSchema,
-  priority: z.number().int().positive().max(1_000_000).optional()
+  priority: z.number().int().positive().max(1_000_000).optional(),
+  remoteBasePath: z.string().max(512).optional()
 });
 
 export const CreateMappingTaskSchema = z.object({

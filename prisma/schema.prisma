@@ -167,6 +167,7 @@ model MappingTaskRemote {
   remoteId      BigInt            @map("remote_id") @db.UnsignedBigInt
   role          MappingRemoteRole
   priority      Int               @default(100) @db.UnsignedInt
+  remoteBasePath String           @default("") @map("remote_base_path") @db.VarChar(512)
   createdAt     DateTime          @default(now()) @map("created_at") @db.DateTime(3)
 
   mappingTask MappingTask @relation(fields: [mappingTaskId], references: [id], onDelete: Cascade, onUpdate: Cascade)
