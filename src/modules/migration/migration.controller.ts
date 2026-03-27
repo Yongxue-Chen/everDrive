@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { z, ZodError } from 'zod';
-import { AppError } from '../../errors/app-error.js';
+import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/async-handler.js';
+import { parseOrBadRequest } from '../../lib/request-parser.js';
 import { JobQueueService } from '../job-queue/job-queue.service.js';
 import { parseTaskId } from '../mapping-task/mapping-task.dto.js';
 import { MigrationService } from './migration.service.js';
@@ -18,15 +18,6 @@ function toBigInt(value: string | number): bigint {
   return typeof value === 'number' ? BigInt(value) : BigInt(value);
 }
 
-function toBadRequest(error: ZodError): AppError {
-  return new AppError({
-    code: 'BAD_REQUEST',
-    message: 'Invalid request payload',
-    statusCode: 400,
-    details: error.issues
-  });
-}
-
 export function createMigrationRouter(_service: MigrationService, queue: JobQueueService): Router {
   const router = Router();
 
@@ -34,15 +25,7 @@ export function createMigrationRouter(_service: MigrationService, queue: JobQueu
     '/api/mapping-tasks/:taskId/migration',
     asyncHandler(async (req, res) => {
       const taskId = parseTaskId(req.params.taskId);
-      let body: ReturnType<typeof MigrationSchema.parse>;
-      try {
-        body = MigrationSchema.parse(req.body ?? {});
-      } catch (error) {
-        if (error instanceof ZodError) {
-          throw toBadRequest(error);
-        }
-        throw error;
-      }
+      const body = parseOrBadRequest(MigrationSchema, req.body ?? {});
 
       const sourceRemoteId = toBigInt(body.sourceRemoteId);
       const targetRemoteId = toBigInt(body.targetRemoteId);

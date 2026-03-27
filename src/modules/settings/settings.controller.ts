@@ -1,19 +1,9 @@
 import { Router } from 'express';
-import { ZodError } from 'zod';
-import { AppError } from '../../errors/app-error.js';
 import { asyncHandler } from '../../middlewares/async-handler.js';
+import { parseOrBadRequest } from '../../lib/request-parser.js';
 import { AuditService } from '../audit/audit.service.js';
 import { UpdateSettingsSchema } from './settings.dto.js';
 import { SettingsService } from './settings.service.js';
-
-function toBadRequest(error: ZodError): AppError {
-  return new AppError({
-    code: 'BAD_REQUEST',
-    message: 'Invalid request payload',
-    statusCode: 400,
-    details: error.issues
-  });
-}
 
 export function createSettingsRouter(service: SettingsService, auditService?: AuditService): Router {
   const router = Router();
@@ -29,15 +19,7 @@ export function createSettingsRouter(service: SettingsService, auditService?: Au
   router.put(
     '/api/settings',
     asyncHandler(async (req, res) => {
-      let body: ReturnType<typeof UpdateSettingsSchema.parse>;
-      try {
-        body = UpdateSettingsSchema.parse(req.body ?? {});
-      } catch (error) {
-        if (error instanceof ZodError) {
-          throw toBadRequest(error);
-        }
-        throw error;
-      }
+      const body = parseOrBadRequest(UpdateSettingsSchema, req.body ?? {});
 
       const item = await service.update(body);
       await auditService?.write({

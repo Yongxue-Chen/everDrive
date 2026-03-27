@@ -1,20 +1,10 @@
 import { Router } from 'express';
-import { ZodError } from 'zod';
-import { AppError } from '../../errors/app-error.js';
 import { asyncHandler } from '../../middlewares/async-handler.js';
+import { parseOrBadRequest } from '../../lib/request-parser.js';
 import { AuditService } from '../audit/audit.service.js';
 import { JobQueueService } from '../job-queue/job-queue.service.js';
 import { CloudInventoryService } from './cloud-inventory.service.js';
 import { parseRemoteId, toBigInt, UpdateRemoteActiveSchema, UpdateRemoteCapacitySchema } from './remote.dto.js';
-
-function toBadRequest(error: ZodError): AppError {
-  return new AppError({
-    code: 'BAD_REQUEST',
-    message: 'Invalid request payload',
-    statusCode: 400,
-    details: error.issues
-  });
-}
 
 export function createRemoteRouter(service: CloudInventoryService, queue: JobQueueService, auditService?: AuditService): Router {
   const router = Router();
@@ -70,15 +60,7 @@ export function createRemoteRouter(service: CloudInventoryService, queue: JobQue
     asyncHandler(async (req, res) => {
       const remoteId = parseRemoteId(req.params.remoteId);
 
-      let body: ReturnType<typeof UpdateRemoteCapacitySchema.parse>;
-      try {
-        body = UpdateRemoteCapacitySchema.parse(req.body);
-      } catch (error) {
-        if (error instanceof ZodError) {
-          throw toBadRequest(error);
-        }
-        throw error;
-      }
+      const body = parseOrBadRequest(UpdateRemoteCapacitySchema, req.body);
 
       const item = await service.updateRemoteCapacity(remoteId, {
         totalCapacity: toBigInt(body.totalCapacity),
@@ -95,15 +77,7 @@ export function createRemoteRouter(service: CloudInventoryService, queue: JobQue
     asyncHandler(async (req, res) => {
       const remoteId = parseRemoteId(req.params.remoteId);
 
-      let body: ReturnType<typeof UpdateRemoteActiveSchema.parse>;
-      try {
-        body = UpdateRemoteActiveSchema.parse(req.body);
-      } catch (error) {
-        if (error instanceof ZodError) {
-          throw toBadRequest(error);
-        }
-        throw error;
-      }
+      const body = parseOrBadRequest(UpdateRemoteActiveSchema, req.body);
 
       const item = await service.setRemoteActive(remoteId, body.isActive);
       res.status(200).json({ item });

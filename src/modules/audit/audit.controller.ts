@@ -1,8 +1,8 @@
 import { OperationType, TargetType } from '@prisma/client';
 import { Router } from 'express';
-import { z, ZodError } from 'zod';
-import { AppError } from '../../errors/app-error.js';
+import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/async-handler.js';
+import { parseOrBadRequest } from '../../lib/request-parser.js';
 import { AuditService } from './audit.service.js';
 
 const QuerySchema = z.object({
@@ -17,30 +17,13 @@ const QuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional()
 });
 
-function toBadRequest(error: ZodError): AppError {
-  return new AppError({
-    code: 'BAD_REQUEST',
-    message: 'Invalid query payload',
-    statusCode: 400,
-    details: error.issues
-  });
-}
-
 export function createAuditRouter(service: AuditService): Router {
   const router = Router();
 
   router.get(
     '/api/audit/logs',
     asyncHandler(async (req, res) => {
-      let query: ReturnType<typeof QuerySchema.parse>;
-      try {
-        query = QuerySchema.parse(req.query);
-      } catch (error) {
-        if (error instanceof ZodError) {
-          throw toBadRequest(error);
-        }
-        throw error;
-      }
+      const query = parseOrBadRequest(QuerySchema, req.query, { message: 'Invalid query payload' });
 
       const data = await service.query({
         operationType: query.operationType,

@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import { ZodError } from 'zod';
-import { AppError } from '../../errors/app-error.js';
 import { asyncHandler } from '../../middlewares/async-handler.js';
+import { parseOrBadRequest } from '../../lib/request-parser.js';
 import { AuditService } from '../audit/audit.service.js';
 import {
   CreateMappingTaskSchema,
@@ -14,30 +13,13 @@ import {
 } from './mapping-task.dto.js';
 import { MappingTaskService } from './mapping-task.service.js';
 
-function toBadRequest(error: ZodError): AppError {
-  return new AppError({
-    code: 'BAD_REQUEST',
-    message: 'Invalid request payload',
-    statusCode: 400,
-    details: error.issues
-  });
-}
-
 export function createMappingTaskRouter(service: MappingTaskService, auditService?: AuditService): Router {
   const router = Router();
 
   router.post(
     '/api/mapping-tasks',
     asyncHandler(async (req, res) => {
-      let body: ReturnType<typeof CreateMappingTaskSchema.parse>;
-      try {
-        body = CreateMappingTaskSchema.parse(req.body);
-      } catch (error) {
-        if (error instanceof ZodError) {
-          throw toBadRequest(error);
-        }
-        throw error;
-      }
+      const body = parseOrBadRequest(CreateMappingTaskSchema, req.body);
 
       const item = await service.createTask({
         name: body.name,
@@ -49,7 +31,8 @@ export function createMappingTaskRouter(service: MappingTaskService, auditServic
         expectedDataSizeBytes: toBigInt(body.expectedDataSizeBytes),
         remoteBindings: body.remoteBindings.map((binding) => ({
           remoteId: toBigInt(binding.remoteId)!,
-          priority: binding.priority
+          priority: binding.priority,
+          remoteBasePath: binding.remoteBasePath
         }))
       });
 
@@ -72,15 +55,7 @@ export function createMappingTaskRouter(service: MappingTaskService, auditServic
   router.get(
     '/api/mapping-tasks',
     asyncHandler(async (req, res) => {
-      let query: ReturnType<typeof MappingTaskListQuerySchema.parse>;
-      try {
-        query = MappingTaskListQuerySchema.parse(req.query);
-      } catch (error) {
-        if (error instanceof ZodError) {
-          throw toBadRequest(error);
-        }
-        throw error;
-      }
+      const query = parseOrBadRequest(MappingTaskListQuerySchema, req.query, { message: 'Invalid query payload' });
 
       const items = await service.listTasks({
         status: query.status,
@@ -106,15 +81,7 @@ export function createMappingTaskRouter(service: MappingTaskService, auditServic
     asyncHandler(async (req, res) => {
       const taskId = parseTaskId(req.params.taskId);
 
-      let body: ReturnType<typeof UpdateMappingTaskSchema.parse>;
-      try {
-        body = UpdateMappingTaskSchema.parse(req.body);
-      } catch (error) {
-        if (error instanceof ZodError) {
-          throw toBadRequest(error);
-        }
-        throw error;
-      }
+      const body = parseOrBadRequest(UpdateMappingTaskSchema, req.body);
 
       const item = await service.updateTask(taskId, {
         name: body.name,
@@ -126,7 +93,8 @@ export function createMappingTaskRouter(service: MappingTaskService, auditServic
         expectedDataSizeBytes: toBigInt(body.expectedDataSizeBytes),
         remoteBindings: body.remoteBindings?.map((binding) => ({
           remoteId: toBigInt(binding.remoteId)!,
-          priority: binding.priority
+          priority: binding.priority,
+          remoteBasePath: binding.remoteBasePath
         }))
       });
 
@@ -149,15 +117,7 @@ export function createMappingTaskRouter(service: MappingTaskService, auditServic
     asyncHandler(async (req, res) => {
       const taskId = parseTaskId(req.params.taskId);
 
-      let body: ReturnType<typeof SetTaskActiveSchema.parse>;
-      try {
-        body = SetTaskActiveSchema.parse(req.body);
-      } catch (error) {
-        if (error instanceof ZodError) {
-          throw toBadRequest(error);
-        }
-        throw error;
-      }
+      const body = parseOrBadRequest(SetTaskActiveSchema, req.body);
 
       const item = await service.setTaskActive(taskId, body.isActive);
       await auditService?.write({
@@ -178,15 +138,7 @@ export function createMappingTaskRouter(service: MappingTaskService, auditServic
     '/api/mapping-tasks/:taskId',
     asyncHandler(async (req, res) => {
       const taskId = parseTaskId(req.params.taskId);
-      let query: ReturnType<typeof DeleteTaskQuerySchema.parse>;
-      try {
-        query = DeleteTaskQuerySchema.parse(req.query);
-      } catch (error) {
-        if (error instanceof ZodError) {
-          throw toBadRequest(error);
-        }
-        throw error;
-      }
+      const query = parseOrBadRequest(DeleteTaskQuerySchema, req.query, { message: 'Invalid query payload' });
 
       const item = await service.deleteTask(taskId, { hardDelete: query.hardDelete });
       await auditService?.write({
