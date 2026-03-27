@@ -18,8 +18,44 @@ function cloudTrashSettings(overrides: Partial<CloudTrashSettings> = {}): CloudT
 }
 
 describe('CloudTrashCleanupService', () => {
+  it('uses each remote cloud trash base path and ignores remotes with trash disabled', async () => {
+    const remoteClient: CloudTrashCleanupRemoteClient = {
+      list: vi.fn(async () => [{ Path: '2026/02/20/101/report.txt', Name: 'report.txt', IsDir: false }]),
+      purge: vi.fn(async () => undefined)
+    };
+
+    const service = new CloudTrashCleanupService({
+      settingsService: {
+        getCurrentConfig: () => ({
+          cloudTrash: cloudTrashSettings({ enabled: false, maxDeleteBatchPerRun: 10 })
+        })
+      } as any,
+      listActiveRemotes: async () => [
+        { id: 1n, remoteName: 'alpha', cloudTrashEnabled: true, cloudTrashBasePath: 'trash-a' },
+        { id: 2n, remoteName: 'beta', cloudTrashEnabled: false, cloudTrashBasePath: 'trash-b' }
+      ],
+      remoteClient,
+      now: () => new Date('2026-03-27T12:00:00.000Z')
+    });
+
+    const summary = await service.runCleanup();
+
+    expect(remoteClient.list).toHaveBeenCalledTimes(1);
+    expect(remoteClient.list).toHaveBeenCalledWith({
+      fs: 'alpha:',
+      remote: 'trash-a'
+    });
+    expect(remoteClient.purge).toHaveBeenCalledWith({
+      fs: 'alpha:',
+      remote: 'trash-a/2026/02/20'
+    });
+    expect(summary.scannedRemotes).toBe(1);
+  });
+
   it('purges expired trash day directories, skips malformed paths, and deduplicates nested entries', async () => {
-    const activeRemotes: CloudTrashRemoteRef[] = [{ id: 1n, remoteName: 'alpha' }];
+    const activeRemotes: CloudTrashRemoteRef[] = [
+      { id: 1n, remoteName: 'alpha', cloudTrashEnabled: true, cloudTrashBasePath: '.everdrive-trash' }
+    ];
     const remoteClient: CloudTrashCleanupRemoteClient = {
       list: vi.fn(async () => [
         { Path: '2026/02/20/101/report.txt', Name: 'report.txt', IsDir: false },
@@ -85,7 +121,7 @@ describe('CloudTrashCleanupService', () => {
           cloudTrash: cloudTrashSettings({ maxDeleteBatchPerRun: 2 })
         })
       } as any,
-      listActiveRemotes: async () => [{ id: 1n, remoteName: 'alpha' }],
+      listActiveRemotes: async () => [{ id: 1n, remoteName: 'alpha', cloudTrashEnabled: true, cloudTrashBasePath: '.everdrive-trash' }],
       remoteClient,
       now: () => new Date('2026-03-27T12:00:00.000Z')
     });
@@ -114,9 +150,9 @@ describe('CloudTrashCleanupService', () => {
 
   it('continues cleanup when one remote list fails and a later purge fails', async () => {
     const activeRemotes: CloudTrashRemoteRef[] = [
-      { id: 1n, remoteName: 'alpha' },
-      { id: 2n, remoteName: 'beta' },
-      { id: 3n, remoteName: 'gamma' }
+      { id: 1n, remoteName: 'alpha', cloudTrashEnabled: true, cloudTrashBasePath: '.everdrive-trash' },
+      { id: 2n, remoteName: 'beta', cloudTrashEnabled: true, cloudTrashBasePath: '.everdrive-trash' },
+      { id: 3n, remoteName: 'gamma', cloudTrashEnabled: true, cloudTrashBasePath: '.everdrive-trash' }
     ];
     const remoteClient: CloudTrashCleanupRemoteClient = {
       list: vi.fn(async ({ fs }) => {
@@ -191,8 +227,8 @@ describe('CloudTrashCleanupService', () => {
         })
       } as any,
       listActiveRemotes: async () => [
-        { id: 1n, remoteName: 'alpha' },
-        { id: 2n, remoteName: 'beta' }
+        { id: 1n, remoteName: 'alpha', cloudTrashEnabled: true, cloudTrashBasePath: '.everdrive-trash' },
+        { id: 2n, remoteName: 'beta', cloudTrashEnabled: true, cloudTrashBasePath: '.everdrive-trash' }
       ],
       remoteClient,
       now: () => new Date('2026-03-27T12:00:00.000Z')

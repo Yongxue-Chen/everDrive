@@ -6,6 +6,8 @@ import type { CloudTrashSettings } from '../settings/settings.dto.js';
 export type CloudTrashRemoteRef = {
   id: bigint;
   remoteName: string;
+  cloudTrashEnabled: boolean;
+  cloudTrashBasePath: string;
 };
 
 export type CloudTrashCleanupListItem = {
@@ -54,19 +56,10 @@ export class CloudTrashCleanupService {
 
   async runCleanup(): Promise<CloudTrashCleanupSummary> {
     const cloudTrash = this.options.settingsService.getCurrentConfig().cloudTrash;
-    if (!cloudTrash.enabled) {
-      return {
-        scannedRemotes: 0,
-        expiredEntriesFound: 0,
-        deletedEntries: 0,
-        skippedMalformedPaths: 0,
-        remoteFailures: 0,
-        deleteFailures: 0,
-        failureSamples: []
-      };
-    }
-
     const activeRemotes = await this.options.listActiveRemotes();
+    const enabledRemotes = activeRemotes.filter(
+      (remote) => remote.cloudTrashEnabled && remote.cloudTrashBasePath.trim().length > 0
+    );
     const summary: CloudTrashCleanupSummary = {
       scannedRemotes: 0,
       expiredEntriesFound: 0,
@@ -78,14 +71,14 @@ export class CloudTrashCleanupService {
     };
     const remainingDeletes = { value: cloudTrash.maxDeleteBatchPerRun };
     this.log.info('cloud trash cleanup started', {
-      activeRemoteCount: activeRemotes.length,
+      activeRemoteCount: enabledRemotes.length,
       retentionDays: cloudTrash.retentionDays,
       maxDeleteBatchPerRun: cloudTrash.maxDeleteBatchPerRun
     });
 
-    for (const remote of activeRemotes) {
+    for (const remote of enabledRemotes) {
       summary.scannedRemotes += 1;
-      const expiredTrashPaths = await this.collectExpiredTrashDayPaths(remote.remoteName, cloudTrash, summary);
+      const expiredTrashPaths = await this.collectExpiredTrashDayPaths(remote, cloudTrash, summary);
       summary.expiredEntriesFound += expiredTrashPaths.length;
 
       for (const expiredTrashPath of expiredTrashPaths) {
@@ -97,7 +90,7 @@ export class CloudTrashCleanupService {
         try {
           await this.remoteClient.purge({
             fs: `${remote.remoteName}:`,
-            remote: path.posix.join(cloudTrash.basePath, expiredTrashPath)
+            remote: path.posix.join(remote.cloudTrashBasePath, expiredTrashPath)
           });
           summary.deletedEntries += 1;
           remainingDeletes.value -= 1;
@@ -123,15 +116,15 @@ export class CloudTrashCleanupService {
   }
 
   private async collectExpiredTrashDayPaths(
-    remoteName: string,
+    remote: CloudTrashRemoteRef,
     cloudTrash: CloudTrashSettings,
     summary: CloudTrashCleanupSummary
   ): Promise<string[]> {
     let items: CloudTrashCleanupListItem[];
     try {
       items = await this.remoteClient.list({
-        fs: `${remoteName}:`,
-        remote: cloudTrash.basePath
+        fs: `${remote.remoteName}:`,
+        remote: remote.cloudTrashBasePath
       });
     } catch (error) {
       if (this.isMissingTrashRootError(error)) {
@@ -140,10 +133,10 @@ export class CloudTrashCleanupService {
       summary.remoteFailures += 1;
       this.recordFailure(summary, {
         stage: 'list',
-        remoteName,
+        remoteName: remote.remoteName,
         message: this.errorMessage(error)
       });
-      this.log.warn('cloud trash cleanup list failed', { remoteName, err: error });
+      this.log.warn('cloud trash cleanup list failed', { remoteName: remote.remoteName, err: error });
       return [];
     }
 
@@ -154,7 +147,7 @@ export class CloudTrashCleanupService {
       if (!parsed) {
         summary.skippedMalformedPaths += 1;
         this.log.warn('cloud trash cleanup skipped malformed path', {
-          remoteName,
+          remoteName: remote.remoteName,
           path: item.Path
         });
         continue;

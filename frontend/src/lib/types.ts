@@ -262,4 +262,11 @@ export type UpdateSettingsPayload = {
   defaultCapacityWarningThresholdPercent?: number;
   hashAlgorithm?: 'md5' | 'sha1' | 'sha256' | 'blake3';
   logLevel?: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+  cloudTrash?: {
+    enabled?: boolean;
+    retentionDays?: number;
+    cleanupIntervalHours?: number;
+    basePath?: string;
+    maxDeleteBatchPerRun?: number;
+  };
 };

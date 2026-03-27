@@ -4,12 +4,14 @@ import type { CloudTrashSettings } from '../settings/settings.dto.js';
 
 type ActiveTaskProvider = () => Promise<bigint[]>;
 type CloudTrashSettingsProvider = () => CloudTrashSettings;
+type CloudTrashEnabledRemoteProvider = () => Promise<boolean>;
 
 export class AutoSyncSchedulerService {
   private readonly log = logger.withContext({ module: 'auto-sync-scheduler' });
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private readonly getCloudTrashSettings: CloudTrashSettingsProvider;
+  private readonly hasCloudTrashEnabledRemotes: CloudTrashEnabledRemoteProvider;
   private readonly now: () => Date;
   private lastCleanupEnqueuedAt: Date | null = null;
 
@@ -19,6 +21,7 @@ export class AutoSyncSchedulerService {
     private readonly intervalSeconds: number,
     options?: {
       getCloudTrashSettings?: CloudTrashSettingsProvider;
+      hasCloudTrashEnabledRemotes?: CloudTrashEnabledRemoteProvider;
       now?: () => Date;
     }
   ) {
@@ -31,6 +34,7 @@ export class AutoSyncSchedulerService {
         basePath: '.everdrive-trash',
         maxDeleteBatchPerRun: 1000
       }));
+    this.hasCloudTrashEnabledRemotes = options?.hasCloudTrashEnabledRemotes ?? (async () => false);
     this.now = options?.now ?? (() => new Date());
   }
 
@@ -67,7 +71,7 @@ export class AutoSyncSchedulerService {
         this.enqueueIfNotRunning('rename_detect', taskId, { candidateWindowSeconds: 30 });
         this.enqueueIfNotRunning('sync', taskId, { deleteGraceSeconds: 30, renameHintWindowSeconds: 3600 });
       }
-      this.enqueueCloudTrashCleanupIfDue();
+      await this.enqueueCloudTrashCleanupIfDue();
       this.log.info('auto sync cycle completed', { tasks: taskIds.length });
     } catch (error) {
       this.log.error('auto sync cycle failed', { err: error });
@@ -85,9 +89,9 @@ export class AutoSyncSchedulerService {
     });
   }
 
-  private enqueueCloudTrashCleanupIfDue(): void {
+  private async enqueueCloudTrashCleanupIfDue(): Promise<void> {
     const cloudTrash = this.getCloudTrashSettings();
-    if (!cloudTrash.enabled) {
+    if (!(await this.hasCloudTrashEnabledRemotes())) {
       return;
     }
 

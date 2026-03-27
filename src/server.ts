@@ -103,7 +103,12 @@ async function bootstrap(): Promise<void> {
       const remotes = await cloudInventoryRepository.listRemotes();
       return remotes
         .filter((remote) => remote.isActive)
-        .map((remote) => ({ id: remote.id, remoteName: remote.remoteName }));
+        .map((remote) => ({
+          id: remote.id,
+          remoteName: remote.remoteName,
+          cloudTrashEnabled: remote.cloudTrashEnabled,
+          cloudTrashBasePath: remote.cloudTrashBasePath
+        }));
     }
   });
   const autoSyncScheduler = new AutoSyncSchedulerService(
@@ -112,6 +117,11 @@ async function bootstrap(): Promise<void> {
     env.SCAN_INTERVAL_SECONDS,
     {
       getCloudTrashSettings: () => settingsService.getCurrentConfig().cloudTrash
+      ,
+      hasCloudTrashEnabledRemotes: async () => {
+        const remotes = await cloudInventoryRepository.listRemotes();
+        return remotes.some((remote) => remote.isActive && remote.cloudTrashEnabled && remote.cloudTrashBasePath.trim().length > 0);
+      }
     }
   );
 

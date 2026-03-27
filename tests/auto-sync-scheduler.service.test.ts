@@ -52,6 +52,7 @@ describe('AutoSyncSchedulerService', () => {
     let currentTime = new Date('2026-03-27T00:00:00.000Z');
     const scheduler = new AutoSyncSchedulerService(queue, async () => [7n], 30, {
       getCloudTrashSettings: () => cloudTrashSettings({ cleanupIntervalHours: 6 }),
+      hasCloudTrashEnabledRemotes: async () => true,
       now: () => currentTime
     });
 
@@ -66,5 +67,21 @@ describe('AutoSyncSchedulerService', () => {
     expect(
       queue.enqueueUnique.mock.calls.filter(([input]: [{ kind: string }]) => input.kind === 'cloud_trash_cleanup')
     ).toHaveLength(2);
+  });
+
+  it('enqueues cleanup jobs when any active remote enables cloud trash even if legacy global switch is off', async () => {
+    const queue = {
+      enqueueUnique: vi.fn(() => ({}))
+    } as any;
+
+    const scheduler = new AutoSyncSchedulerService(queue, async () => [7n], 30, {
+      getCloudTrashSettings: () => cloudTrashSettings({ enabled: false, cleanupIntervalHours: 6 }),
+      hasCloudTrashEnabledRemotes: async () => true,
+      now: () => new Date('2026-03-27T00:00:00.000Z')
+    } as any);
+
+    await scheduler.runCycle();
+
+    expect(queue.enqueueUnique).toHaveBeenCalledWith(expect.objectContaining({ kind: 'cloud_trash_cleanup', lane: 'short' }));
   });
 });

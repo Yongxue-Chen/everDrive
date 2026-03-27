@@ -22,7 +22,10 @@ export function SettingsPage() {
     jobRemoteLimit: 1,
     warningThreshold: 85,
     hashAlgorithm: 'sha1',
-    logLevel: 'info'
+    logLevel: 'info',
+    cloudTrashRetentionDays: 30,
+    cloudTrashCleanupIntervalHours: 24,
+    cloudTrashMaxDeleteBatchPerRun: 1000
   });
 
   useEffect(() => {
@@ -49,7 +52,10 @@ export function SettingsPage() {
       jobRemoteLimit: values.defaultConcurrency.jobRemoteLimit,
       warningThreshold: values.defaultCapacityWarningThresholdPercent,
       hashAlgorithm: values.hashAlgorithm,
-      logLevel: values.logLevel
+      logLevel: values.logLevel,
+      cloudTrashRetentionDays: values.cloudTrash.retentionDays,
+      cloudTrashCleanupIntervalHours: values.cloudTrash.cleanupIntervalHours,
+      cloudTrashMaxDeleteBatchPerRun: values.cloudTrash.maxDeleteBatchPerRun
     });
   }, [values]);
 
@@ -73,7 +79,12 @@ export function SettingsPage() {
       },
       defaultCapacityWarningThresholdPercent: Number(form.warningThreshold),
       hashAlgorithm: form.hashAlgorithm as 'md5' | 'sha1' | 'sha256' | 'blake3',
-      logLevel: form.logLevel as 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace'
+      logLevel: form.logLevel as 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace',
+      cloudTrash: {
+        retentionDays: Number(form.cloudTrashRetentionDays),
+        cleanupIntervalHours: Number(form.cloudTrashCleanupIntervalHours),
+        maxDeleteBatchPerRun: Number(form.cloudTrashMaxDeleteBatchPerRun)
+      }
     });
   };
 
@@ -172,8 +183,33 @@ export function SettingsPage() {
               Rclone 重试延迟（毫秒）
               <input type="number" value={form.retryDelayMs} onChange={(e) => setForm((prev) => ({ ...prev, retryDelayMs: Number(e.target.value) }))} />
             </label>
+            <label>
+              回收站保留天数
+              <input
+                type="number"
+                value={form.cloudTrashRetentionDays}
+                onChange={(e) => setForm((prev) => ({ ...prev, cloudTrashRetentionDays: Number(e.target.value) }))}
+              />
+            </label>
+            <label>
+              回收站清理频率（小时）
+              <input
+                type="number"
+                value={form.cloudTrashCleanupIntervalHours}
+                onChange={(e) => setForm((prev) => ({ ...prev, cloudTrashCleanupIntervalHours: Number(e.target.value) }))}
+              />
+            </label>
+            <label>
+              单次最大清理数量
+              <input
+                type="number"
+                value={form.cloudTrashMaxDeleteBatchPerRun}
+                onChange={(e) => setForm((prev) => ({ ...prev, cloudTrashMaxDeleteBatchPerRun: Number(e.target.value) }))}
+              />
+            </label>
           </div>
         ) : null}
+        <p className="muted">云盘是否启用自建回收站、以及回收站路径，请在“云盘列表”页按 remote 单独设置。</p>
         <div className="toggle-row">
           <button onClick={submit} disabled={mutation.isPending}>
             {mutation.isPending ? '正在保存...' : '保存设置'}
