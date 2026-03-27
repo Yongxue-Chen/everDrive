@@ -1,0 +1,77 @@
+services:
+  mysql:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-everdrive}
+      MYSQL_USER: ${MYSQL_USER:-everdrive}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-everdrive_pass}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  rclone:
+    image: rclone/rclone:latest
+    command:
+      - rcd
+      - --rc-addr=:5572
+      - --rc-user=${RCLONE_RCD_USER:-admin}
+      - --rc-pass=${RCLONE_RCD_PASS:-change_me}
+    ports:
+      - "${RCLONE_RCD_PORT:-5572}:5572"
+    volumes:
+      - rclone_config:/config/rclone
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      NODE_ENV: production
+      PORT: 43107
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL:-mysql://${MYSQL_USER:-everdrive}:${MYSQL_PASSWORD:-everdrive_pass}@mysql:3306/${MYSQL_DATABASE:-everdrive}}
+      RCLONE_RCD_URL: ${RCLONE_RCD_URL:-http://rclone:5572}
+      RCLONE_RCD_USER: ${RCLONE_RCD_USER:-admin}
+      RCLONE_RCD_PASS: ${RCLONE_RCD_PASS:-change_me}
+      ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:-change_me_to_a_long_random_secret}
+      RCLONE_HTTP_TIMEOUT_MS: ${RCLONE_HTTP_TIMEOUT_MS:-5000}
+      RCLONE_RETRY_ATTEMPTS: ${RCLONE_RETRY_ATTEMPTS:-2}
+      RCLONE_RETRY_DELAY_MS: ${RCLONE_RETRY_DELAY_MS:-250}
+      SCAN_BATCH_SIZE: ${SCAN_BATCH_SIZE:-1000}
+      SCAN_INTERVAL_SECONDS: ${SCAN_INTERVAL_SECONDS:-30}
+      SYNC_CONCURRENCY: ${SYNC_CONCURRENCY:-4}
+      RCLONE_CONCURRENCY: ${RCLONE_CONCURRENCY:-4}
+      JOB_WORKER_CONCURRENCY: ${JOB_WORKER_CONCURRENCY:-2}
+      JOB_SHORT_WORKER_CONCURRENCY: ${JOB_SHORT_WORKER_CONCURRENCY:-1}
+      JOB_REMOTE_CONCURRENCY_LIMIT: ${JOB_REMOTE_CONCURRENCY_LIMIT:-1}
+      DB_MIGRATE_MAX_RETRIES: ${DB_MIGRATE_MAX_RETRIES:-30}
+      DB_MIGRATE_RETRY_DELAY_SECONDS: ${DB_MIGRATE_RETRY_DELAY_SECONDS:-2}
+    ports:
+      - "${BACKEND_PORT:-43107}:43107"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_DEFAULT_API_MODE: ${VITE_DEFAULT_API_MODE:-live}
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-43117}:80"
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  rclone_config:

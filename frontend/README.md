@@ -13,7 +13,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Backend API defaults to `http://localhost:3000` via Vite proxy (`/api`).
+Backend API defaults to `http://127.0.0.1:43107` via Vite proxy (`/api`).
 
 ## Mock / Live Switch
 - Runtime switch in `Settings` page:

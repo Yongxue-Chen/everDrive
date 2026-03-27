@@ -23,6 +23,7 @@ describe('parseEnv', () => {
     expect(parsed.LOG_LEVEL).toBe('debug');
     expect(parsed.SCAN_BATCH_SIZE).toBe(2000);
     expect(parsed.SYNC_CONCURRENCY).toBe(8);
+    expect(parsed.ENCRYPTION_MASTER_KEY).toBe('');
   });
 
   it('throws when required config is missing', () => {

@@ -202,6 +202,10 @@ select {
   padding: 14px;
 }
 
+.remote-card--pulse {
+  animation: remote-warning-pulse 1.6s ease-in-out infinite;
+}
+
 .remote-card__header {
   display: flex;
   justify-content: space-between;
@@ -229,6 +233,18 @@ select {
 .progress__bar {
   height: 100%;
   background: linear-gradient(90deg, #0f766e, #1f9d55);
+}
+
+@keyframes remote-warning-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(209, 123, 0, 0.22);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(209, 123, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(209, 123, 0, 0);
+  }
 }
 
 .remote-card__meta {

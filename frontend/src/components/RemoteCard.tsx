@@ -12,7 +12,7 @@ type RemoteCardProps = {
 export function RemoteCard(props: RemoteCardProps) {
   const tone = props.warningFlag ? 'warn' : 'good';
   return (
-    <article className={`remote-card remote-card--${tone}`}>
+    <article className={`remote-card remote-card--${tone} ${props.warningFlag ? 'remote-card--pulse' : ''}`}>
       <header className="remote-card__header">
         <h4>{props.name}</h4>
         <span className={`badge badge--${props.healthStatus}`}>{props.healthStatus}</span>
