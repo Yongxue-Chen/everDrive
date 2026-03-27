@@ -13,6 +13,7 @@ const EnvSchema = z.object({
   RCLONE_RCD_URL: z.string().url(),
   RCLONE_RCD_USER: z.string().min(1),
   RCLONE_RCD_PASS: z.string().min(1),
+  ENCRYPTION_MASTER_KEY: z.string().optional().default(''),
   RCLONE_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
   RCLONE_RETRY_ATTEMPTS: z.coerce.number().int().min(0).default(2),
   RCLONE_RETRY_DELAY_MS: z.coerce.number().int().min(0).default(250),

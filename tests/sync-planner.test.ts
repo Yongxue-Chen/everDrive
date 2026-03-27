@@ -9,6 +9,7 @@ function context(syncMode: 'archive' | 'mirror', splitEnabled = false): SyncCont
     name: 'photos',
     localPath: '/data/photos',
     syncMode,
+    encryptionEnabled: false,
     splitEnabled,
     isActive: true,
     deletedAt: null,
@@ -17,6 +18,7 @@ function context(syncMode: 'archive' | 'mirror', splitEnabled = false): SyncCont
         remoteId: 11n,
         priority: 100,
         role: 'primary',
+        remoteBasePath: '',
         remote: {
           id: 11n,
           remoteName: 'driveA',
@@ -31,6 +33,7 @@ function context(syncMode: 'archive' | 'mirror', splitEnabled = false): SyncCont
         remoteId: 22n,
         priority: 200,
         role: 'backup',
+        remoteBasePath: '',
         remote: {
           id: 22n,
           remoteName: 'driveB',
@@ -113,6 +116,18 @@ describe('SyncPlanner', () => {
     expect(upload?.targets.map((item) => item.remoteName)).toEqual(['driveA', 'driveB']);
   });
 
+  it('applies per-remote base path when planning upload targets', async () => {
+    const ctx = context('archive');
+    ctx.remotes[0]!.remoteBasePath = 'team-a/photos';
+    ctx.remotes[1]!.remoteBasePath = 'team-b/photos';
+    const planner = new SyncPlanner(repoStub(ctx));
+    const plan = await planner.buildPlan(1n);
+
+    const upload = plan.uploadActions.find((item) => item.fileId === '101');
+    expect(upload?.targets[0]?.remotePath).toBe('team-a/photos/new.jpg');
+    expect(upload?.targets[1]?.remotePath).toBe('team-b/photos/new.jpg');
+  });
+
   it('uses split mode to place one file on a single best-fit remote', async () => {
     const planner = new SyncPlanner(repoStub(context('archive', true)));
     const plan = await planner.buildPlan(1n);
@@ -160,5 +175,23 @@ describe('SyncPlanner', () => {
     expect(plan.renameActions).toHaveLength(1);
     expect(plan.renameActions[0]?.fromPath).toContain('old-name.jpg');
     expect(plan.uploadActions).toHaveLength(0);
+  });
+
+  it('obfuscates remote path when encryption is enabled', async () => {
+    const previous = process.env.ENCRYPTION_MASTER_KEY;
+    process.env.ENCRYPTION_MASTER_KEY = 'unit-test-secret';
+    try {
+      const ctx = context('archive');
+      ctx.encryptionEnabled = true;
+      const planner = new SyncPlanner(repoStub(ctx));
+      const plan = await planner.buildPlan(1n);
+
+      const upload = plan.uploadActions.find((item) => item.fileId === '101');
+      const remotePath = upload?.targets[0]?.remotePath ?? '';
+      expect(remotePath.endsWith('.edc')).toBe(true);
+      expect(remotePath.includes('new.jpg')).toBe(false);
+    } finally {
+      process.env.ENCRYPTION_MASTER_KEY = previous;
+    }
   });
 });

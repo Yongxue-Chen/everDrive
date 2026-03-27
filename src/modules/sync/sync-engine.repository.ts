@@ -5,6 +5,7 @@ export type SyncContext = {
   name: string;
   localPath: string;
   syncMode: 'archive' | 'mirror';
+  encryptionEnabled: boolean;
   splitEnabled: boolean;
   isActive: boolean;
   deletedAt: Date | null;
@@ -12,6 +13,7 @@ export type SyncContext = {
     remoteId: bigint;
     priority: number;
     role: 'primary' | 'backup' | 'shard';
+    remoteBasePath: string;
     remote: {
       id: bigint;
       remoteName: string;
@@ -60,6 +62,7 @@ export class SyncEngineRepository {
         name: true,
         localPath: true,
         syncMode: true,
+        encryptionEnabled: true,
         splitEnabled: true,
         isActive: true,
         deletedAt: true,
@@ -69,6 +72,7 @@ export class SyncEngineRepository {
             remoteId: true,
             priority: true,
             role: true,
+            remoteBasePath: true,
             remote: {
               select: {
                 id: true,

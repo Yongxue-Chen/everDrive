@@ -2,6 +2,7 @@ import path from 'node:path';
 import { FileSyncStatus, ScanStatus } from '@prisma/client';
 import { AppError } from '../../errors/app-error.js';
 import { logger } from '../../lib/logger.js';
+import { buildEncryptedRemotePath, requireEncryptionKeyOrThrow } from '../security/encryption.js';
 import { SplitPlanner } from '../split/split-planner.service.js';
 import type { RenameHint } from './sync-engine.repository.js';
 import { SyncEngineRepository } from './sync-engine.repository.js';
@@ -10,6 +11,7 @@ export type RemoteTarget = {
   remoteId: string;
   remoteName: string;
   remotePath: string;
+  nextRemotePath?: string;
 };
 
 export type UploadAction = {
@@ -49,6 +51,7 @@ export type SyncPlan = {
   mappingTaskName: string;
   localBasePath: string;
   syncMode: 'archive' | 'mirror';
+  encryptionEnabled: boolean;
   generatedAt: string;
   uploadActions: UploadAction[];
   renameActions: RenameAction[];
@@ -87,6 +90,19 @@ export class SyncPlanner {
     const deleteGraceSeconds = options?.deleteGraceSeconds ?? 30;
     const renameHintWindowSeconds = options?.renameHintWindowSeconds ?? 3600;
     const now = Date.now();
+    const encryptionKey = context.encryptionEnabled ? requireEncryptionKeyOrThrow(process.env.ENCRYPTION_MASTER_KEY) : null;
+    const activeRemoteById = new Map(activeRemotes.map((link) => [link.remoteId.toString(), link]));
+    const activeRemoteIdSet = new Set(activeRemoteById.keys());
+    const splitCandidates = activeRemotes.map((item) => ({
+      remoteId: item.remoteId.toString(),
+      remoteName: item.remote.remoteName,
+      priority: item.priority,
+      totalCapacity: item.remote.totalCapacity,
+      usedCapacity: item.remote.usedCapacity,
+      reservedCapacity: item.remote.reservedCapacity,
+      warningThresholdPercent: item.remote.warningThresholdPercent,
+      isActive: item.remote.isActive
+    }));
 
     const renameHints = await this.repository.listRenameHints(
       context.files.filter((file) => file.scanStatus === ScanStatus.changed).map((file) => file.id),
@@ -137,7 +153,7 @@ export class SyncPlanner {
         const targets: RemoteTarget[] = file.fileLocations
           .filter((location) => location.syncStatus === FileSyncStatus.synced || location.syncStatus === FileSyncStatus.verifying)
           .map((location) => {
-            const remote = activeRemotes.find((item) => item.remoteId === location.remoteId);
+            const remote = activeRemoteById.get(location.remoteId.toString());
             return remote
               ? {
                   remoteId: remote.remoteId.toString(),
@@ -169,76 +185,92 @@ export class SyncPlanner {
       }
 
       const uploadTargets: RemoteTarget[] = [];
-      if (context.splitEnabled) {
+        if (context.splitEnabled) {
         const existingSynced = file.fileLocations.find(
           (location) =>
             (location.syncStatus === FileSyncStatus.synced || location.syncStatus === FileSyncStatus.verifying) &&
-            activeRemotes.some((remote) => remote.remoteId === location.remoteId)
+            activeRemoteIdSet.has(location.remoteId.toString())
         );
-        if (existingSynced && file.scanStatus === ScanStatus.changed) {
-          const remote = activeRemotes.find((item) => item.remoteId === existingSynced.remoteId)!;
-          uploadTargets.push({
-            remoteId: remote.remoteId.toString(),
-            remoteName: remote.remote.remoteName,
-            remotePath: file.relativePath
-          });
-        } else if (!existingSynced) {
-          const placement = this.splitPlanner.pickTarget(
-            activeRemotes.map((item) => ({
-              remoteId: item.remoteId.toString(),
-              remoteName: item.remote.remoteName,
-              priority: item.priority,
-              totalCapacity: item.remote.totalCapacity,
-              usedCapacity: item.remote.usedCapacity,
-              reservedCapacity: item.remote.reservedCapacity,
-              warningThresholdPercent: item.remote.warningThresholdPercent,
-              isActive: item.remote.isActive
-            })),
-            file.fileSize
-          );
-          uploadTargets.push({
-            remoteId: placement.remoteId,
-            remoteName: placement.remoteName,
-            remotePath: file.relativePath
-          });
-        }
-      } else {
+          if (existingSynced && file.scanStatus === ScanStatus.changed) {
+            const remote = activeRemoteById.get(existingSynced.remoteId.toString())!;
+            uploadTargets.push({
+              remoteId: remote.remoteId.toString(),
+              remoteName: remote.remote.remoteName,
+              remotePath: this.toRemotePath({
+                relativePath: file.relativePath,
+                remoteBasePath: remote.remoteBasePath,
+                encryptionKey
+              })
+            });
+          } else if (!existingSynced) {
+          const placement = this.splitPlanner.pickTarget(splitCandidates, file.fileSize);
+          const placementRemote = activeRemoteById.get(placement.remoteId);
+            uploadTargets.push({
+              remoteId: placement.remoteId,
+              remoteName: placement.remoteName,
+              remotePath: this.toRemotePath({
+                relativePath: file.relativePath,
+                remoteBasePath: placementRemote?.remoteBasePath ?? '',
+                encryptionKey
+              })
+            });
+          }
+        } else {
         for (const remoteLink of activeRemotes) {
           const currentLocation = locationByRemoteId.get(remoteLink.remoteId.toString());
 
-          if (!currentLocation) {
-            uploadTargets.push({
-              remoteId: remoteLink.remoteId.toString(),
-              remoteName: remoteLink.remote.remoteName,
-              remotePath: file.relativePath
-            });
-            continue;
-          }
+            if (!currentLocation) {
+              uploadTargets.push({
+                remoteId: remoteLink.remoteId.toString(),
+                remoteName: remoteLink.remote.remoteName,
+                remotePath: this.toRemotePath({
+                  relativePath: file.relativePath,
+                  remoteBasePath: remoteLink.remoteBasePath,
+                  encryptionKey
+                })
+              });
+              continue;
+            }
 
-          if (file.scanStatus === ScanStatus.changed) {
-            uploadTargets.push({
-              remoteId: remoteLink.remoteId.toString(),
-              remoteName: remoteLink.remote.remoteName,
-              remotePath: file.relativePath
-            });
+            if (file.scanStatus === ScanStatus.changed) {
+              uploadTargets.push({
+                remoteId: remoteLink.remoteId.toString(),
+                remoteName: remoteLink.remote.remoteName,
+                remotePath: this.toRemotePath({
+                  relativePath: file.relativePath,
+                  remoteBasePath: remoteLink.remoteBasePath,
+                  encryptionKey
+                })
+              });
+            }
           }
-        }
       }
 
-      if (file.scanStatus === ScanStatus.changed) {
+        if (file.scanStatus === ScanStatus.changed) {
         const renameHint = renameHintMap.get(file.id);
         if (renameHint && renameHint.toPath === file.localPath) {
           const renameTargets = file.fileLocations
             .filter((location) => {
-              const remote = activeRemotes.find((item) => item.remoteId === location.remoteId);
+              const remote = activeRemoteById.get(location.remoteId.toString());
               return Boolean(remote && (location.syncStatus === FileSyncStatus.synced || location.syncStatus === FileSyncStatus.verifying));
             })
             .map((location) => {
-              const remote = activeRemotes.find((item) => item.remoteId === location.remoteId)!;
+              const remote = activeRemoteById.get(location.remoteId.toString())!;
               return {
                 remoteId: location.remoteId.toString(),
                 remoteName: remote.remote.remoteName,
-                remotePath: this.toRemotePath(renameHint.fromPath, context.localPath)
+                remotePath: this.toRemotePath({
+                  localPath: renameHint.fromPath,
+                  localBasePath: context.localPath,
+                  remoteBasePath: remote.remoteBasePath,
+                  encryptionKey
+                }),
+                nextRemotePath: this.toRemotePath({
+                  localPath: renameHint.toPath,
+                  localBasePath: context.localPath,
+                  remoteBasePath: remote.remoteBasePath,
+                  encryptionKey
+                })
               };
             });
 
@@ -284,6 +316,7 @@ export class SyncPlanner {
       mappingTaskName: context.name,
       localBasePath: context.localPath,
       syncMode: context.syncMode,
+      encryptionEnabled: context.encryptionEnabled,
       generatedAt: new Date().toISOString(),
       uploadActions,
       renameActions,
@@ -302,7 +335,32 @@ export class SyncPlanner {
     return plan;
   }
 
-  private toRemotePath(localPath: string, basePath: string): string {
-    return path.relative(basePath, localPath).replace(/\\/g, '/');
+  private toRemotePath(input: {
+    relativePath?: string;
+    localPath?: string;
+    localBasePath?: string;
+    remoteBasePath: string;
+    encryptionKey: Buffer | null;
+  }): string {
+    const normalizedRelativePath =
+      input.relativePath ??
+      path
+        .relative(input.localBasePath ?? '', input.localPath ?? '')
+        .replace(/\\/g, '/')
+        .replace(/^\/+/, '');
+    const relativePath = normalizedRelativePath.replace(/^\/+/, '');
+    if (!relativePath || relativePath === '.' || relativePath.startsWith('../') || relativePath === '..') {
+      throw new AppError({
+        code: 'BAD_REQUEST',
+        message: `Invalid relative path for remote sync: ${normalizedRelativePath}`,
+        statusCode: 400
+      });
+    }
+    const mappedPath = input.encryptionKey ? buildEncryptedRemotePath(relativePath, input.encryptionKey) : relativePath;
+
+    if (!input.remoteBasePath) {
+      return mappedPath;
+    }
+    return path.posix.join(input.remoteBasePath, mappedPath);
   }
 }

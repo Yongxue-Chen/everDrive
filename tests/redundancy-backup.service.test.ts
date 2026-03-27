@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import type { IRcloneClient } from '../src/infrastructure/rclone/rclone-rcd-client.js';
 import { RedundancyBackupService } from '../src/modules/redundancy/redundancy-backup.service.js';
 import type { SyncEngineRepository } from '../src/modules/sync/sync-engine.repository.js';
@@ -55,5 +58,33 @@ describe('RedundancyBackupService', () => {
 
     expect(result.syncedRemotes).toBe(2);
     expect(result.failedRemotes).toBe(0);
+  });
+
+  it('encrypts upload source when encryptionEnabled is true', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'everdrive-redundancy-'));
+    const localFile = path.join(tempDir, 'secret.txt');
+    await fs.writeFile(localFile, 'hello world', 'utf8');
+
+    const copy = vi.fn(async () => ({ async: false as const, result: {} }));
+    const previous = process.env.ENCRYPTION_MASTER_KEY;
+    process.env.ENCRYPTION_MASTER_KEY = 'unit-test-secret';
+
+    try {
+      const service = new RedundancyBackupService(repoStub(), rcloneStub(copy));
+      await service.uploadFileToTargets({
+        fileId: '1',
+        localPath: localFile,
+        reason: 'new_file',
+        encryptionEnabled: true,
+        targets: [{ remoteId: '11', remoteName: 'driveA', remotePath: 'secret.txt' }]
+      });
+
+      const calls = copy.mock.calls as unknown as Array<Array<unknown>>;
+      const call = calls[0]?.[0] as { srcRemote: string } | undefined;
+      expect(call?.srcRemote).toBe('payload.edc');
+    } finally {
+      process.env.ENCRYPTION_MASTER_KEY = previous;
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
   });
 });
