@@ -1,7 +1,7 @@
 import { AppError } from '../../errors/app-error.js';
 import { logger } from '../../lib/logger.js';
 
-export type QueueJobKind = 'scan' | 'sync' | 'rename_detect' | 'migrate' | 'remote_stats_refresh';
+export type QueueJobKind = 'scan' | 'sync' | 'rename_detect' | 'migrate' | 'remote_stats_refresh' | 'cloud_trash_cleanup';
 export type QueueJobLane = 'short' | 'long';
 export type QueueJobStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled';
 
@@ -99,6 +99,14 @@ export class JobQueueService {
     return { ...job };
   }
 
+  enqueueUnique(input: EnqueueJobInput): QueueJob {
+    const existing = this.findQueuedOrRunning(input.kind, input.mappingTaskId, input.payload ?? {});
+    if (existing) {
+      return existing;
+    }
+    return this.enqueue(input);
+  }
+
   getJob(jobId: string): QueueJob | null {
     const job = this.jobs.get(jobId);
     return job ? { ...job } : null;
@@ -115,6 +123,42 @@ export class JobQueueService {
     }
 
     return { ...job };
+  }
+
+  hasQueuedOrRunning(kind: QueueJobKind, mappingTaskId?: bigint): boolean {
+    const mappingTaskIdValue = mappingTaskId?.toString() ?? null;
+    for (const job of this.jobs.values()) {
+      if (job.kind !== kind) {
+        continue;
+      }
+      if (mappingTaskIdValue !== null && job.mappingTaskId !== mappingTaskIdValue) {
+        continue;
+      }
+      if (job.status === 'queued' || job.status === 'running') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  findQueuedOrRunning(kind: QueueJobKind, mappingTaskId?: bigint, payload?: Record<string, unknown>): QueueJob | null {
+    const mappingTaskIdValue = mappingTaskId?.toString() ?? null;
+    const payloadKey = this.payloadKey(payload ?? {});
+    for (const job of this.jobs.values()) {
+      if (job.kind !== kind) {
+        continue;
+      }
+      if (mappingTaskIdValue !== null && job.mappingTaskId !== mappingTaskIdValue) {
+        continue;
+      }
+      if (this.payloadKey(job.payload) !== payloadKey) {
+        continue;
+      }
+      if (job.status === 'queued' || job.status === 'running') {
+        return { ...job };
+      }
+    }
+    return null;
   }
 
   cancelQueuedJob(jobId: string): QueueJob {
@@ -318,4 +362,21 @@ export class JobQueueService {
       queue.splice(index, 1);
     }
   }
+
+  private payloadKey(payload: Record<string, unknown>): string {
+    return stableStringify(payload);
+  }
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`);
+    return `{${entries.join(',')}}`;
+  }
+  return JSON.stringify(value);
 }

@@ -1,8 +1,9 @@
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app/create-app.js';
 import { createJobQueueRouter } from '../src/modules/job-queue/job-queue.controller.js';
 import { JobQueueService } from '../src/modules/job-queue/job-queue.service.js';
+import { createMaintenanceRouter } from '../src/modules/maintenance/maintenance.controller.js';
 import { createScanRouter } from '../src/modules/scan/scan.controller.js';
 
 function deferred<T>() {
@@ -64,5 +65,35 @@ describe('job queue API', () => {
 
     const runningJob = await request(app).get('/api/jobs/' + first.body.job.id);
     expect(['running', 'success']).toContain(runningJob.body.job.status);
+  });
+
+  it('enqueues a cloud trash cleanup job from the maintenance endpoint', async () => {
+    const queue = new JobQueueService({ longWorkerConcurrency: 1, shortWorkerConcurrency: 1, remoteConcurrencyLimit: 1 });
+    queue.registerHandler('cloud_trash_cleanup', async () => ({ ok: true }));
+    const auditService = {
+      write: vi.fn(async () => undefined)
+    } as any;
+
+    const app = createApp({
+      checkDb: async () => true,
+      checkRclone: async () => true,
+      jobQueueRouter: createJobQueueRouter(queue),
+      maintenanceRouter: createMaintenanceRouter(queue, auditService)
+    });
+
+    const response = await request(app).post('/api/maintenance/cloud-trash/cleanup').send({});
+
+    expect(response.status).toBe(202);
+    expect(response.body.job.kind).toBe('cloud_trash_cleanup');
+    expect(response.body.job.lane).toBe('short');
+    expect(['queued', 'running', 'success']).toContain(response.body.job.status);
+    expect(auditService.write).toHaveBeenCalledWith({
+      operationType: 'update',
+      targetType: 'sync_job',
+      message: 'Manual cloud trash cleanup enqueued',
+      metadataJson: {
+        jobId: response.body.job.id
+      }
+    });
   });
 });

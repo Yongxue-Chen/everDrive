@@ -130,4 +130,28 @@ describe('JobQueueService', () => {
     shortDeferred.resolve();
     await queue.waitForIdle();
   });
+
+  it('deduplicates queued/running jobs with enqueueUnique', async () => {
+    const queue = new JobQueueService({ longWorkerConcurrency: 1, shortWorkerConcurrency: 1, remoteConcurrencyLimit: 1 });
+    const blocker = deferred<void>();
+    queue.registerHandler('scan', async () => blocker.promise);
+
+    const first = queue.enqueueUnique({
+      kind: 'scan',
+      lane: 'long',
+      mappingTaskId: 10n,
+      payload: { a: 1, b: 2 }
+    });
+    const second = queue.enqueueUnique({
+      kind: 'scan',
+      lane: 'long',
+      mappingTaskId: 10n,
+      payload: { b: 2, a: 1 }
+    });
+
+    expect(second.id).toBe(first.id);
+
+    blocker.resolve();
+    await queue.waitForIdle();
+  });
 });

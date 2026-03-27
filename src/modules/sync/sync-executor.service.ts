@@ -2,6 +2,7 @@ import path from 'node:path';
 import { FileSyncStatus, ScanStatus } from '@prisma/client';
 import type { IRcloneClient } from '../../infrastructure/rclone/rclone-rcd-client.js';
 import { logger } from '../../lib/logger.js';
+import type { CloudTrashSettings } from '../settings/settings.dto.js';
 import { RedundancyBackupService } from '../redundancy/redundancy-backup.service.js';
 import { SyncEngineRepository } from './sync-engine.repository.js';
 import type { DeleteAction, RenameAction, SyncPlan, UploadAction } from './sync-planner.service.js';
@@ -25,9 +26,20 @@ export type SyncExecutionSummary = {
 export class SyncExecutor {
   private readonly log = logger.withContext({ module: 'sync-executor' });
   private readonly redundancyBackupService: RedundancyBackupService;
+  private readonly getCloudTrashSettings: () => CloudTrashSettings;
+  private readonly now: () => Date;
 
-  constructor(private readonly repository: SyncEngineRepository, private readonly rcloneClient: IRcloneClient) {
+  constructor(
+    private readonly repository: SyncEngineRepository,
+    private readonly rcloneClient: IRcloneClient,
+    options?: {
+      getCloudTrashSettings?: () => CloudTrashSettings;
+      now?: () => Date;
+    }
+  ) {
     this.redundancyBackupService = new RedundancyBackupService(repository, rcloneClient);
+    this.getCloudTrashSettings = options?.getCloudTrashSettings ?? (() => this.defaultCloudTrashSettings());
+    this.now = options?.now ?? (() => new Date());
   }
 
   async executePlan(plan: SyncPlan): Promise<SyncExecutionSummary> {
@@ -58,7 +70,7 @@ export class SyncExecutor {
         await this.executeRename(action, plan, summary);
       }
       for (const action of plan.deleteActions) {
-        await this.executeDelete(action, summary);
+        await this.executeDelete(action, plan, summary);
       }
 
       const completed = {
@@ -149,28 +161,52 @@ export class SyncExecutor {
     }
   }
 
-  private async executeDelete(action: DeleteAction, summary: Omit<SyncExecutionSummary, 'jobId' | 'mappingTaskId'>): Promise<void> {
+  private async executeDelete(
+    action: DeleteAction,
+    plan: SyncPlan,
+    summary: Omit<SyncExecutionSummary, 'jobId' | 'mappingTaskId'>
+  ): Promise<void> {
     for (const target of action.targets) {
       try {
-        await this.rcloneClient.deleteFile({
-          fs: `${target.remoteName}:`,
-          remote: target.remotePath,
-          async: false
-        });
+        const cloudTrashSettings = this.getCloudTrashSettings();
+        if (cloudTrashSettings.enabled) {
+          const trashRemotePath = await this.moveToCloudTrash(target.remoteName, target.remotePath, plan.mappingTaskId, cloudTrashSettings.basePath);
+
+          await this.repository.writeOperationLog({
+            operationType: 'delete',
+            targetType: 'file_location',
+            targetId: BigInt(action.fileId),
+            message: 'Remote file moved to cloud trash by mirror policy',
+            metadata: {
+              remoteId: target.remoteId,
+              remoteName: target.remoteName,
+              remotePath: target.remotePath,
+              trashPath: trashRemotePath,
+              safeBy: action.safeBy
+            }
+          });
+        } else {
+          await this.rcloneClient.deleteFile({
+            fs: `${target.remoteName}:`,
+            remote: target.remotePath,
+            async: false
+          });
+
+          await this.repository.writeOperationLog({
+            operationType: 'delete',
+            targetType: 'file_location',
+            targetId: BigInt(action.fileId),
+            message: 'Remote file deleted by mirror policy',
+            metadata: {
+              remoteId: target.remoteId,
+              remoteName: target.remoteName,
+              remotePath: target.remotePath,
+              safeBy: action.safeBy
+            }
+          });
+        }
 
         await this.repository.setFileLocationStatus(BigInt(action.fileId), BigInt(target.remoteId), FileSyncStatus.deleted);
-        await this.repository.writeOperationLog({
-          operationType: 'delete',
-          targetType: 'file_location',
-          targetId: BigInt(action.fileId),
-          message: 'Remote file deleted by mirror policy',
-          metadata: {
-            remoteId: target.remoteId,
-            remoteName: target.remoteName,
-            remotePath: target.remotePath,
-            safeBy: action.safeBy
-          }
-        });
         summary.deleteSuccess += 1;
       } catch (error) {
         summary.deleteFailed += 1;
@@ -180,7 +216,90 @@ export class SyncExecutor {
     }
   }
 
+  private async moveToCloudTrash(remoteName: string, remotePath: string, mappingTaskId: string, basePath: string): Promise<string> {
+    const trashRemotePath = this.buildCloudTrashRemotePath(basePath, mappingTaskId, remotePath);
+
+    try {
+      await this.rcloneClient.move({
+        srcFs: `${remoteName}:`,
+        srcRemote: remotePath,
+        dstFs: `${remoteName}:`,
+        dstRemote: trashRemotePath,
+        async: false
+      });
+      return trashRemotePath;
+    } catch (error) {
+      if (!this.isPathConflictError(error)) {
+        throw error;
+      }
+
+      const retryTrashRemotePath = this.buildCloudTrashRemotePath(
+        basePath,
+        mappingTaskId,
+        remotePath,
+        this.buildTrashTimestampSuffix()
+      );
+      await this.rcloneClient.move({
+        srcFs: `${remoteName}:`,
+        srcRemote: remotePath,
+        dstFs: `${remoteName}:`,
+        dstRemote: retryTrashRemotePath,
+        async: false
+      });
+      return retryTrashRemotePath;
+    }
+  }
+
   private toRemotePath(localPath: string, localBasePath: string): string {
     return path.relative(localBasePath, localPath).replace(/\\/g, '/');
+  }
+
+  private buildCloudTrashRemotePath(
+    basePath: string,
+    mappingTaskId: string,
+    originalRemotePath: string,
+    timestampSuffix?: string
+  ): string {
+    const current = this.now();
+    const year = String(current.getUTCFullYear());
+    const month = String(current.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(current.getUTCDate()).padStart(2, '0');
+    return path.posix.join(basePath, year, month, day, mappingTaskId, this.appendTimestampSuffix(originalRemotePath, timestampSuffix));
+  }
+
+  private appendTimestampSuffix(originalRemotePath: string, timestampSuffix?: string): string {
+    if (!timestampSuffix) {
+      return originalRemotePath;
+    }
+
+    const directory = path.posix.dirname(originalRemotePath);
+    const parsed = path.posix.parse(originalRemotePath);
+    const suffixedFileName = `${parsed.name}${timestampSuffix}${parsed.ext}`;
+    return directory === '.' ? suffixedFileName : path.posix.join(directory, suffixedFileName);
+  }
+
+  private buildTrashTimestampSuffix(): string {
+    const current = this.now();
+    const year = String(current.getUTCFullYear());
+    const month = String(current.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(current.getUTCDate()).padStart(2, '0');
+    const hours = String(current.getUTCHours()).padStart(2, '0');
+    const minutes = String(current.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(current.getUTCSeconds()).padStart(2, '0');
+    return `-${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+  }
+
+  private isPathConflictError(error: unknown): boolean {
+    return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'PATH_CONFLICT';
+  }
+
+  private defaultCloudTrashSettings(): CloudTrashSettings {
+    return {
+      enabled: false,
+      retentionDays: 30,
+      cleanupIntervalHours: 24,
+      basePath: '.everdrive-trash',
+      maxDeleteBatchPerRun: 1000
+    };
   }
 }

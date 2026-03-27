@@ -14,6 +14,7 @@ import { DashboardService } from './modules/dashboard/dashboard.service.js';
 import { createAuditRouter } from './modules/audit/audit.controller.js';
 import { AuditService } from './modules/audit/audit.service.js';
 import { createJobQueueRouter } from './modules/job-queue/job-queue.controller.js';
+import { createMaintenanceRouter } from './modules/maintenance/maintenance.controller.js';
 import { JobQueueService } from './modules/job-queue/job-queue.service.js';
 import { createMigrationRouter } from './modules/migration/migration.controller.js';
 import { MigrationRepository } from './modules/migration/migration.repository.js';
@@ -39,6 +40,8 @@ import { SettingsService } from './modules/settings/settings.service.js';
 import { createSyncRouter } from './modules/sync/sync.controller.js';
 import { SyncEngineRepository } from './modules/sync/sync-engine.repository.js';
 import { SyncOrchestrationService } from './modules/sync/sync-orchestration.service.js';
+import { AutoSyncSchedulerService } from './modules/scheduler/auto-sync-scheduler.service.js';
+import { CloudTrashCleanupService } from './modules/cloud-trash/cloud-trash-cleanup.service.js';
 
 async function bootstrap(): Promise<void> {
   const env = getEnv();
@@ -72,6 +75,7 @@ async function bootstrap(): Promise<void> {
   const syncService = new SyncOrchestrationService(syncRepository, rcloneClient);
   const syncRouter = createSyncRouter(syncService, jobQueue);
   const jobQueueRouter = createJobQueueRouter(jobQueue);
+  const maintenanceRouter = createMaintenanceRouter(jobQueue, auditService);
   const redundancyRepository = new RedundancyRepository(database.prisma);
   const redundancyViewService = new RedundancyViewService(redundancyRepository);
   const redundancyBackupService = new RedundancyBackupService(syncRepository, rcloneClient);
@@ -89,6 +93,23 @@ async function bootstrap(): Promise<void> {
   const metricsRouter = createMetricsRouter(metricsService);
   const settingsService = await SettingsService.create();
   const settingsRouter = createSettingsRouter(settingsService, auditService);
+  const cloudTrashCleanupService = new CloudTrashCleanupService({
+    settingsService,
+    listActiveRemotes: async () => {
+      const remotes = await cloudInventoryRepository.listRemotes();
+      return remotes
+        .filter((remote) => remote.isActive)
+        .map((remote) => ({ id: remote.id, remoteName: remote.remoteName }));
+    }
+  });
+  const autoSyncScheduler = new AutoSyncSchedulerService(
+    jobQueue,
+    async () => mappingTaskService.listActiveTaskIds(),
+    env.SCAN_INTERVAL_SECONDS,
+    {
+      getCloudTrashSettings: () => settingsService.getCurrentConfig().cloudTrash
+    }
+  );
 
   jobQueue.registerHandler('scan', async (job) => {
     if (!job.mappingTaskId) {
@@ -150,6 +171,11 @@ async function bootstrap(): Promise<void> {
     return { summary };
   });
 
+  jobQueue.registerHandler('cloud_trash_cleanup', async () => {
+    const summary = await cloudTrashCleanupService.runCleanup();
+    return { summary };
+  });
+
   const app = createApp({
     checkDb: () => database.isHealthy(),
     checkRclone: () => rcloneClient.checkOnline(),
@@ -161,6 +187,7 @@ async function bootstrap(): Promise<void> {
     redundancyRouter,
     migrationRouter,
     jobQueueRouter,
+    maintenanceRouter,
     dashboardRouter,
     settingsRouter,
     auditRouter,
@@ -170,9 +197,11 @@ async function bootstrap(): Promise<void> {
   const server = app.listen(env.PORT, () => {
     logger.info('everDrive backend started', { port: env.PORT });
   });
+  autoSyncScheduler.start();
 
   const shutdown = async (signal: string): Promise<void> => {
     logger.info('shutdown started', { signal });
+    autoSyncScheduler.stop();
 
     await logger.audit({
       operationType: 'update',

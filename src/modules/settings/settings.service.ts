@@ -3,6 +3,10 @@ import { getEnv } from '../../config/env.js';
 import type { UpdateSettingsInput, Settings, SettingsView } from './settings.dto.js';
 import { SettingsRepository } from './settings.repository.js';
 
+type CompleteSettings = Omit<Settings, 'cloudTrash'> & {
+  cloudTrash: NonNullable<Settings['cloudTrash']>;
+};
+
 function maskSecret(value: string): string {
   if (!value) {
     return '';
@@ -13,10 +17,44 @@ function maskSecret(value: string): string {
   return `${value.slice(0, 2)}${'*'.repeat(Math.max(2, value.length - 4))}${value.slice(-2)}`;
 }
 
-export class SettingsService {
-  private settings: Settings;
+function cloneSettings(settings: CompleteSettings): CompleteSettings {
+  return {
+    ...settings,
+    rcloneRcd: {
+      ...settings.rcloneRcd
+    },
+    defaultConcurrency: {
+      ...settings.defaultConcurrency
+    },
+    cloudTrash: {
+      ...settings.cloudTrash
+    }
+  };
+}
 
-  private constructor(initialSettings: Settings, private readonly repository: SettingsRepository) {
+function normalizeSettings(defaults: CompleteSettings, loaded: Settings): CompleteSettings {
+  return {
+    ...defaults,
+    ...loaded,
+    rcloneRcd: {
+      ...defaults.rcloneRcd,
+      ...loaded.rcloneRcd
+    },
+    defaultConcurrency: {
+      ...defaults.defaultConcurrency,
+      ...loaded.defaultConcurrency
+    },
+    cloudTrash: {
+      ...defaults.cloudTrash,
+      ...(loaded.cloudTrash ?? {})
+    }
+  };
+}
+
+export class SettingsService {
+  private settings: CompleteSettings;
+
+  private constructor(initialSettings: CompleteSettings, private readonly repository: SettingsRepository) {
     this.settings = initialSettings;
   }
 
@@ -41,12 +79,20 @@ export class SettingsService {
       },
       defaultCapacityWarningThresholdPercent: 85,
       hashAlgorithm: 'sha1',
-      logLevel: env.LOG_LEVEL
+      logLevel: env.LOG_LEVEL,
+      cloudTrash: {
+        enabled: false,
+        retentionDays: 30,
+        cleanupIntervalHours: 24,
+        basePath: '.everdrive-trash',
+        maxDeleteBatchPerRun: 1000
+      }
     };
 
     const loaded = await repository.load(defaults);
-    rawLogger.level = loaded.logLevel;
-    return new SettingsService(loaded, repository);
+    const normalized = normalizeSettings(defaults, loaded);
+    rawLogger.level = normalized.logLevel;
+    return new SettingsService(normalized, repository);
   }
 
   getCurrent(): SettingsView {
@@ -57,8 +103,12 @@ export class SettingsService {
     });
   }
 
+  getCurrentConfig(): Settings {
+    return cloneSettings(this.settings);
+  }
+
   async update(input: UpdateSettingsInput): Promise<SettingsView> {
-    const merged: Settings = {
+    const merged: CompleteSettings = {
       ...this.settings,
       ...input,
       rcloneRcd: {
@@ -68,6 +118,10 @@ export class SettingsService {
       defaultConcurrency: {
         ...this.settings.defaultConcurrency,
         ...input.defaultConcurrency
+      },
+      cloudTrash: {
+        ...this.settings.cloudTrash,
+        ...(input.cloudTrash ?? {})
       }
     };
 
@@ -95,7 +149,12 @@ export class SettingsService {
       [merged.defaultConcurrency.jobShort !== this.settings.defaultConcurrency.jobShort, 'defaultConcurrency.jobShort'],
       [merged.defaultConcurrency.jobRemoteLimit !== this.settings.defaultConcurrency.jobRemoteLimit, 'defaultConcurrency.jobRemoteLimit'],
       [merged.defaultCapacityWarningThresholdPercent !== this.settings.defaultCapacityWarningThresholdPercent, 'defaultCapacityWarningThresholdPercent'],
-      [merged.hashAlgorithm !== this.settings.hashAlgorithm, 'hashAlgorithm']
+      [merged.hashAlgorithm !== this.settings.hashAlgorithm, 'hashAlgorithm'],
+      [merged.cloudTrash.enabled !== this.settings.cloudTrash.enabled, 'cloudTrash.enabled'],
+      [merged.cloudTrash.retentionDays !== this.settings.cloudTrash.retentionDays, 'cloudTrash.retentionDays'],
+      [merged.cloudTrash.cleanupIntervalHours !== this.settings.cloudTrash.cleanupIntervalHours, 'cloudTrash.cleanupIntervalHours'],
+      [merged.cloudTrash.basePath !== this.settings.cloudTrash.basePath, 'cloudTrash.basePath'],
+      [merged.cloudTrash.maxDeleteBatchPerRun !== this.settings.cloudTrash.maxDeleteBatchPerRun, 'cloudTrash.maxDeleteBatchPerRun']
     ];
 
     for (const [changed, key] of restartCandidates) {
@@ -119,7 +178,7 @@ export class SettingsService {
   }
 
   private toView(
-    settings: Settings,
+    settings: CompleteSettings,
     hotUpdate: {
       hotUpdatedKeys: string[];
       restartRequiredKeys: string[];
@@ -143,7 +202,10 @@ export class SettingsService {
         },
         defaultCapacityWarningThresholdPercent: settings.defaultCapacityWarningThresholdPercent,
         hashAlgorithm: settings.hashAlgorithm,
-        logLevel: settings.logLevel
+        logLevel: settings.logLevel,
+        cloudTrash: {
+          ...settings.cloudTrash
+        }
       },
       hotUpdate
     };

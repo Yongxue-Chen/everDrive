@@ -16,6 +16,7 @@ type CreateAppDeps = {
   redundancyRouter?: Router;
   migrationRouter?: Router;
   jobQueueRouter?: Router;
+  maintenanceRouter?: Router;
   dashboardRouter?: Router;
   settingsRouter?: Router;
   auditRouter?: Router;
@@ -45,6 +46,7 @@ export function createApp(deps: CreateAppDeps) {
   app.use(deps.redundancyRouter ?? express.Router());
   app.use(deps.migrationRouter ?? express.Router());
   app.use(deps.jobQueueRouter ?? express.Router());
+  app.use(deps.maintenanceRouter ?? express.Router());
   app.use(deps.dashboardRouter ?? express.Router());
   app.use(deps.settingsRouter ?? express.Router());
   app.use(deps.auditRouter ?? express.Router());
