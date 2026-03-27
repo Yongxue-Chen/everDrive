@@ -11,12 +11,28 @@ export const CloudTrashSettingsSchema = z.object({
 });
 
 export type CloudTrashSettings = z.infer<typeof CloudTrashSettingsSchema>;
+export const SyncProfileSettingsSchema = z.object({
+  transfers: z.number().int().positive(),
+  checkers: z.number().int().positive(),
+  bufferSizeMiB: z.number().int().positive(),
+  tpsLimit: z.number().positive(),
+  bwLimitMiB: z.number().positive()
+});
+
+export type SyncProfileSettings = z.infer<typeof SyncProfileSettingsSchema>;
 const DefaultCloudTrashSettings: CloudTrashSettings = {
   enabled: false,
   retentionDays: 30,
   cleanupIntervalHours: 24,
   basePath: '.everdrive-trash',
   maxDeleteBatchPerRun: 1000
+};
+const DefaultSyncProfileSettings: SyncProfileSettings = {
+  transfers: 1,
+  checkers: 1,
+  bufferSizeMiB: 8,
+  tpsLimit: 2,
+  bwLimitMiB: 4
 };
 function normalizeCloudTrashInput(value: unknown): unknown {
   if (value === undefined) {
@@ -27,6 +43,18 @@ function normalizeCloudTrashInput(value: unknown): unknown {
   }
   return {
     ...DefaultCloudTrashSettings,
+    ...(value as Record<string, unknown>)
+  };
+}
+function normalizeSyncProfileInput(value: unknown): unknown {
+  if (value === undefined) {
+    return DefaultSyncProfileSettings;
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return value;
+  }
+  return {
+    ...DefaultSyncProfileSettings,
     ...(value as Record<string, unknown>)
   };
 }
@@ -66,6 +94,7 @@ export const SettingsSchema = z.object({
   defaultCapacityWarningThresholdPercent: z.number().int().min(1).max(100),
   hashAlgorithm: HashAlgorithmSchema,
   logLevel: LogLevelSchema,
+  syncProfile: z.preprocess(normalizeSyncProfileInput, SyncProfileSettingsSchema),
   cloudTrash: z.preprocess(normalizeCloudTrashInput, CloudTrashSettingsSchema)
 });
 
@@ -76,6 +105,7 @@ export type Settings = {
   defaultCapacityWarningThresholdPercent: number;
   hashAlgorithm: z.infer<typeof HashAlgorithmSchema>;
   logLevel: z.infer<typeof LogLevelSchema>;
+  syncProfile: SyncProfileSettings;
   cloudTrash: CloudTrashSettings;
 };
 
@@ -104,6 +134,7 @@ export const UpdateSettingsSchema = z
     defaultCapacityWarningThresholdPercent: z.number().int().min(1).max(100).optional(),
     hashAlgorithm: HashAlgorithmSchema.optional(),
     logLevel: LogLevelSchema.optional(),
+    syncProfile: SyncProfileSettingsSchema.partial().optional(),
     cloudTrash: CloudTrashSettingsSchema.partial().optional()
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'At least one field is required' });
@@ -132,6 +163,7 @@ export type SettingsView = {
     defaultCapacityWarningThresholdPercent: number;
     hashAlgorithm: 'md5' | 'sha1' | 'sha256' | 'blake3';
     logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+    syncProfile: SyncProfileSettings;
     cloudTrash: {
       enabled: boolean;
       retentionDays: number;

@@ -46,6 +46,7 @@ function createRcloneStub(overrides: Partial<IRcloneClient> = {}): IRcloneClient
   return {
     checkOnline: vi.fn(async () => true),
     listRemotes: vi.fn(async () => ['driveA', 'driveB']),
+    getAbout: vi.fn(async () => ({ total: null, used: null, free: null })),
     getConfigProviders: vi.fn(async () => ({ providers: [] })),
     copy: vi.fn(async () => ({ async: false as const, result: {} })),
     sync: vi.fn(async () => ({ async: false as const, result: {} })),
@@ -180,5 +181,22 @@ describe('CloudInventoryService', () => {
       cloudTrashEnabled: true,
       cloudTrashBasePath: 'trash-a'
     });
+  });
+
+  it('prefers real remote usage from rclone about when available', async () => {
+    const repository = createRepositoryStub({
+      listRemotes: vi.fn(async () => [buildRemote({ totalCapacity: 0n, usedCapacity: 0n, reservedCapacity: 100n })]),
+      getUsedCapacityByRemoteIds: vi.fn(async (): Promise<RemoteUsageAggregate[]> => [])
+    });
+    const rclone = createRcloneStub({
+      getAbout: vi.fn(async () => ({ total: '1000', used: '250', free: '750' }))
+    });
+    const service = new CloudInventoryService(repository, rclone);
+
+    const cards = await service.listRemoteCards();
+
+    expect(cards[0]?.capacity.usedCapacityBytes).toBe('250');
+    expect(cards[0]?.capacity.totalCapacityBytes).toBe('1000');
+    expect(cards[0]?.capacity.remainingCapacityBytes).toBe('650');
   });
 });

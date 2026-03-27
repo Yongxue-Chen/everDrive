@@ -202,9 +202,9 @@ export class CloudInventoryService {
 
   private async refreshUsageSnapshots(
     remoteIds?: bigint[]
-  ): Promise<Map<bigint, { usedCapacity: bigint; healthStatus: HealthStatus }>> {
+  ): Promise<Map<bigint, { totalCapacity?: bigint; usedCapacity: bigint; healthStatus: HealthStatus }>> {
     const remotes = await this.repository.listRemotes(remoteIds);
-    const snapshots = new Map<bigint, { usedCapacity: bigint; healthStatus: HealthStatus }>();
+    const snapshots = new Map<bigint, { totalCapacity?: bigint; usedCapacity: bigint; healthStatus: HealthStatus }>();
     if (remotes.length === 0) {
       return snapshots;
     }
@@ -213,9 +213,12 @@ export class CloudInventoryService {
     const usageMap = new Map<bigint, bigint>(usageRows.map((row) => [row.remoteId, row.usedCapacity]));
 
     for (const remote of remotes) {
-      const usedCapacity = usageMap.get(remote.id) ?? 0n;
+      const fallbackUsedCapacity = usageMap.get(remote.id) ?? 0n;
+      const runtimeAbout = remote.isActive ? await this.loadRemoteAbout(remote.remoteName) : null;
+      const usedCapacity = runtimeAbout?.usedCapacity ?? fallbackUsedCapacity;
+      const totalCapacity = runtimeAbout?.totalCapacity ?? remote.totalCapacity;
       const status = this.computeHealthStatus({
-        totalCapacity: remote.totalCapacity,
+        totalCapacity,
         reservedCapacity: remote.reservedCapacity,
         usedCapacity,
         warningThresholdPercent: remote.warningThresholdPercent,
@@ -223,7 +226,7 @@ export class CloudInventoryService {
       });
 
       await this.repository.updateRemoteUsageSnapshot(remote.id, usedCapacity, status);
-      snapshots.set(remote.id, { usedCapacity, healthStatus: status });
+      snapshots.set(remote.id, { totalCapacity, usedCapacity, healthStatus: status });
     }
 
     return snapshots;
@@ -231,11 +234,12 @@ export class CloudInventoryService {
 
   private toRemoteCard(
     remote: RemoteRecord,
-    runtimeSnapshot?: { usedCapacity: bigint; healthStatus: HealthStatus }
+    runtimeSnapshot?: { totalCapacity?: bigint; usedCapacity: bigint; healthStatus: HealthStatus }
   ): RemoteCard {
+    const effectiveTotalCapacity = runtimeSnapshot?.totalCapacity ?? remote.totalCapacity;
     const effectiveUsedCapacity = runtimeSnapshot?.usedCapacity ?? remote.usedCapacity;
     const stats = this.computeCapacityStats({
-      totalCapacity: remote.totalCapacity,
+      totalCapacity: effectiveTotalCapacity,
       reservedCapacity: remote.reservedCapacity,
       usedCapacity: effectiveUsedCapacity,
       warningThresholdPercent: remote.warningThresholdPercent,
@@ -251,7 +255,7 @@ export class CloudInventoryService {
       cloudTrashBasePath: remote.cloudTrashBasePath,
       healthStatus: runtimeSnapshot?.healthStatus ?? stats.healthStatus,
       capacity: {
-        totalCapacityBytes: remote.totalCapacity.toString(),
+        totalCapacityBytes: effectiveTotalCapacity.toString(),
         usedCapacityBytes: effectiveUsedCapacity.toString(),
         reservedCapacityBytes: remote.reservedCapacity.toString(),
         remainingCapacityBytes: stats.remainingCapacity.toString(),
@@ -270,6 +274,19 @@ export class CloudInventoryService {
       lastSyncAt: remote.lastSyncAt?.toISOString() ?? null,
       updatedAt: remote.updatedAt.toISOString()
     };
+  }
+
+  private async loadRemoteAbout(remoteName: string): Promise<{ totalCapacity?: bigint; usedCapacity?: bigint } | null> {
+    try {
+      const about = await this.rcloneClient.getAbout(`${remoteName}:`);
+      return {
+        totalCapacity: about.total ? BigInt(about.total) : undefined,
+        usedCapacity: about.used ? BigInt(about.used) : undefined
+      };
+    } catch (error) {
+      this.log.warn('failed to load remote capacity from rclone about', { remoteName, err: error });
+      return null;
+    }
   }
 
   private computeHealthStatus(input: {

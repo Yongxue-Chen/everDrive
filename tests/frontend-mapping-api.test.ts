@@ -3,6 +3,7 @@ import {
   createMappingTask,
   deleteMappingTask,
   fetchMappingTasks,
+  runMappingTaskSync,
   setApiMode,
   setMappingTaskActive,
   updateMappingTask
@@ -49,7 +50,7 @@ describe('frontend mapping api', () => {
       encryptionEnabled: false,
       redundancyEnabled: false,
       splitEnabled: false,
-      remoteBindings: [{ remoteId: '11', priority: 100, remoteBasePath: 'team/media' }]
+      remoteBindings: [{ remoteId: '11', priority: 1, remoteBasePath: 'team/media' }]
     });
 
     const list = await fetchMappingTasks();
@@ -66,11 +67,11 @@ describe('frontend mapping api', () => {
 
     const updated = await updateMappingTask(first.id, {
       name: '已更新映射',
-      remoteBindings: [{ remoteId: first.remotes[0].remoteId, priority: 300, remoteBasePath: 'archive/2026' }]
+      remoteBindings: [{ remoteId: first.remotes[0].remoteId, priority: 3, remoteBasePath: 'archive/2026' }]
     });
 
     expect(updated.item.name).toBe('已更新映射');
-    expect(updated.item.remotes[0]?.priority).toBe(300);
+    expect(updated.item.remotes[0]?.priority).toBe(3);
     expect(updated.item.remotes[0]?.remoteBasePath).toBe('archive/2026');
   });
 
@@ -110,11 +111,12 @@ describe('frontend mapping api', () => {
       encryptionEnabled: true,
       redundancyEnabled: false,
       splitEnabled: false,
-      remoteBindings: [{ remoteId: '11', priority: 100, remoteBasePath: '' }]
+      remoteBindings: [{ remoteId: '11', priority: 1, remoteBasePath: '' }]
     });
 
     await updateMappingTask('9', { name: '后端映射-更新' });
     await setMappingTaskActive('9', true);
+    await runMappingTaskSync('9');
     await deleteMappingTask('9');
 
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -134,6 +136,11 @@ describe('frontend mapping api', () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       4,
+      '/api/mapping-tasks/9/run-sync',
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
       '/api/mapping-tasks/9',
       expect.objectContaining({ method: 'DELETE' })
     );
@@ -162,8 +169,8 @@ describe('frontend mapping api', () => {
         redundancyEnabled: false,
         splitEnabled: false,
         remoteBindings: [
-          { remoteId: '11', priority: 100, remoteBasePath: '' },
-          { remoteId: '11', priority: 200, remoteBasePath: '' }
+          { remoteId: '11', priority: 1, remoteBasePath: '' },
+          { remoteId: '11', priority: 2, remoteBasePath: '' }
         ]
       })
     ).rejects.toThrow('remoteIds cannot contain duplicates');

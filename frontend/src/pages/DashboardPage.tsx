@@ -3,7 +3,7 @@ import { JobStatusPanel } from '../components/JobStatusPanel';
 import { RemoteCard } from '../components/RemoteCard';
 import { StatusCard } from '../components/StatusCard';
 import { fetchCloudView, fetchWorkspaceView } from '../lib/api';
-import { formatBytes } from '../lib/format';
+import { formatGigabytes } from '../lib/format';
 
 export function DashboardPage() {
   const workspaceQuery = useQuery({ queryKey: ['workspace-view'], queryFn: fetchWorkspaceView, refetchInterval: 10000 });
@@ -22,7 +22,7 @@ export function DashboardPage() {
 
       <section className="status-grid">
         <StatusCard title="工作空间数" value={String(workspaceCount)} tone="neutral" meta="按映射任务聚合" />
-        <StatusCard title="数据总量" value={formatBytes(totalSize)} tone="good" meta="本地已索引体积" />
+        <StatusCard title="数据总量" value={formatGigabytes(totalSize)} tone="good" meta="本地已索引体积" />
         <StatusCard title="告警云盘" value={String(warningRemotes)} tone={warningRemotes ? 'warn' : 'good'} meta="容量或健康状态异常" />
       </section>
 

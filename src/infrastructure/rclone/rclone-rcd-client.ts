@@ -71,6 +71,12 @@ export type RcloneConfigProviders = {
   providers: Array<Record<string, unknown>>;
 };
 
+export type RcloneAboutResult = {
+  total: string | null;
+  used: string | null;
+  free: string | null;
+};
+
 type RcloneClientOptions = {
   baseUrl?: string;
   user?: string;
@@ -78,6 +84,13 @@ type RcloneClientOptions = {
   timeoutMs?: number;
   retryAttempts?: number;
   retryDelayMs?: number;
+  getExecutionProfile?: () => {
+    transfers: number;
+    checkers: number;
+    bufferSizeMiB: number;
+    tpsLimit: number;
+    bwLimitMiB: number;
+  };
 };
 
 type RcloneRpcResponseBody = {
@@ -89,6 +102,7 @@ type RcloneRpcResponseBody = {
 export interface IRcloneClient {
   checkOnline(): Promise<boolean>;
   listRemotes(): Promise<string[]>;
+  getAbout(fs: string): Promise<RcloneAboutResult>;
   getConfigProviders(): Promise<RcloneConfigProviders>;
   copy(input: TransferOperationInput): Promise<RcloneOperationResult>;
   sync(input: TransferOperationInput): Promise<RcloneOperationResult>;
@@ -116,6 +130,7 @@ export class RcloneClient implements IRcloneClient {
   private readonly timeoutMs: number;
   private readonly retryAttempts: number;
   private readonly retryDelayMs: number;
+  private getExecutionProfile?: RcloneClientOptions['getExecutionProfile'];
   private readonly log = logger.withContext({ module: 'rclone-client' });
 
   constructor(options?: RcloneClientOptions) {
@@ -127,7 +142,12 @@ export class RcloneClient implements IRcloneClient {
     this.timeoutMs = options?.timeoutMs ?? env.RCLONE_HTTP_TIMEOUT_MS;
     this.retryAttempts = options?.retryAttempts ?? env.RCLONE_RETRY_ATTEMPTS;
     this.retryDelayMs = options?.retryDelayMs ?? env.RCLONE_RETRY_DELAY_MS;
+    this.getExecutionProfile = options?.getExecutionProfile;
     this.authHeader = `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`;
+  }
+
+  setExecutionProfileProvider(provider?: RcloneClientOptions['getExecutionProfile']): void {
+    this.getExecutionProfile = provider;
   }
 
   async checkOnline(): Promise<boolean> {
@@ -143,6 +163,28 @@ export class RcloneClient implements IRcloneClient {
   async listRemotes(): Promise<string[]> {
     const response = await this.post<{ remotes?: string[] }>('config/listremotes', {});
     return (response.remotes ?? []).map((remote) => remote.replace(/:$/, ''));
+  }
+
+  async getAbout(fs: string): Promise<RcloneAboutResult> {
+    const response = await this.post<Record<string, unknown>>('operations/about', { fs });
+
+    const readBigintLike = (value: unknown): string | null => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return Math.trunc(value).toString();
+      }
+
+      if (typeof value === 'string' && value.trim()) {
+        return value;
+      }
+
+      return null;
+    };
+
+    return {
+      total: readBigintLike(response.total),
+      used: readBigintLike(response.used),
+      free: readBigintLike(response.free)
+    };
   }
 
   async getConfigProviders(): Promise<RcloneConfigProviders> {
@@ -197,14 +239,14 @@ export class RcloneClient implements IRcloneClient {
   }
 
   private async transfer(method: string, input: TransferOperationInput): Promise<RcloneOperationResult> {
-    return this.callOperation(method, {
+    return this.callOperation(method, this.withExecutionProfile({
       srcFs: input.srcFs,
       srcRemote: input.srcRemote,
       dstFs: input.dstFs,
       dstRemote: input.dstRemote,
       createEmptySrcDirs: input.createEmptySrcDirs ?? false,
       _async: input.async ?? false
-    });
+    }));
   }
 
   private async callOperation(
@@ -226,6 +268,24 @@ export class RcloneClient implements IRcloneClient {
     }
 
     return { async: false, result: response };
+  }
+
+  private withExecutionProfile(payload: Record<string, unknown> & { _async: boolean }): Record<string, unknown> & { _async: boolean } {
+    const profile = this.getExecutionProfile?.();
+    if (!profile) {
+      return payload;
+    }
+
+    return {
+      ...payload,
+      _config: {
+        Transfers: profile.transfers,
+        Checkers: profile.checkers,
+        BufferSize: profile.bufferSizeMiB * 1024 * 1024,
+        TPSLimit: profile.tpsLimit,
+        BwLimit: `${profile.bwLimitMiB}M`
+      }
+    };
   }
 
   private async post<TResult extends Record<string, unknown>>(method: string, body: Record<string, unknown>): Promise<TResult> {

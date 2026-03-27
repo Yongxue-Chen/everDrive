@@ -9,6 +9,7 @@ import {
   fetchCloudRemotes,
   fetchMappingTasks,
   getApiMode,
+  runMappingTaskSync,
   setMappingTaskActive,
   updateMappingTask
 } from '../lib/api';
@@ -39,7 +40,7 @@ const createEmptyForm = (): MappingFormState => ({
   redundancyEnabled: false,
   splitEnabled: false,
   expectedDataSizeBytes: '',
-  remoteBindings: [{ remoteId: '', priority: 100, remoteBasePath: '' }]
+  remoteBindings: [{ remoteId: '', priority: 1, remoteBasePath: '' }]
 });
 
 function mapItemToForm(item: MappingTaskItem): MappingFormState {
@@ -51,9 +52,9 @@ function mapItemToForm(item: MappingTaskItem): MappingFormState {
     redundancyEnabled: item.redundancy_enabled,
     splitEnabled: item.split_enabled,
     expectedDataSizeBytes: '',
-    remoteBindings: item.remotes.map((remote) => ({
+    remoteBindings: item.remotes.map((remote, index) => ({
       remoteId: remote.remoteId,
-      priority: remote.priority,
+      priority: index + 1,
       remoteBasePath: remote.remoteBasePath
     }))
   };
@@ -140,6 +141,13 @@ export function MappingTasksPage() {
     }
   });
 
+  const runSyncMutation = useMutation({
+    mutationFn: async (item: MappingTaskItem) => runMappingTaskSync(item.id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['mapping-tasks'] });
+    }
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (item: MappingTaskItem) => deleteMappingTask(item.id),
     onSuccess: (_, item) => {
@@ -169,7 +177,9 @@ export function MappingTasksPage() {
   };
 
   const pendingTaskId =
-    (activeMutation.isPending ? activeMutation.variables?.id : null) ?? (deleteMutation.isPending ? deleteMutation.variables?.id : null);
+    (activeMutation.isPending ? activeMutation.variables?.id : null) ??
+    (deleteMutation.isPending ? deleteMutation.variables?.id : null) ??
+    (runSyncMutation.isPending ? runSyncMutation.variables?.id : null);
 
   return (
     <div className="page">
@@ -210,6 +220,9 @@ export function MappingTasksPage() {
               items={query.data.items}
               pendingTaskId={pendingTaskId}
               onEdit={startEdit}
+              onRunSync={(item) => {
+                runSyncMutation.mutate(item);
+              }}
               onToggleActive={(item) => {
                 const nextAction = item.status === 'active' ? '停用' : '启用';
                 if (!window.confirm(`确认要${nextAction}映射“${item.name}”吗？`)) {
@@ -318,7 +331,7 @@ export function MappingTasksPage() {
                     ...prev,
                     remoteBindings: [
                       ...prev.remoteBindings,
-                      { remoteId: remotesQuery.data?.items[0]?.id ?? '', priority: (prev.remoteBindings.length + 1) * 100, remoteBasePath: '' }
+                      { remoteId: remotesQuery.data?.items[0]?.id ?? '', priority: prev.remoteBindings.length + 1, remoteBasePath: '' }
                     ]
                   }))
                 }
@@ -365,6 +378,7 @@ export function MappingTasksPage() {
                   绑定顺序
                   <input
                     type="number"
+                    min={1}
                     value={binding.priority}
                     onChange={(e) =>
                       setForm((prev) => ({
@@ -412,6 +426,7 @@ export function MappingTasksPage() {
           </div>
           {submitError ? <p className="error">{submitError}</p> : null}
           {activeMutation.error ? <p className="error">切换映射状态失败。</p> : null}
+          {runSyncMutation.error ? <p className="error">手动触发同步失败。</p> : null}
           {deleteMutation.error ? <p className="error">删除映射失败。</p> : null}
 
           <div className="toggle-row">

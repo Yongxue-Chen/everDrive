@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../../middlewares/async-handler.js';
 import { parseOrBadRequest } from '../../lib/request-parser.js';
 import { AuditService } from '../audit/audit.service.js';
+import { JobQueueService } from '../job-queue/job-queue.service.js';
 import {
   CreateMappingTaskSchema,
   DeleteTaskQuerySchema,
@@ -13,7 +14,7 @@ import {
 } from './mapping-task.dto.js';
 import { MappingTaskService } from './mapping-task.service.js';
 
-export function createMappingTaskRouter(service: MappingTaskService, auditService?: AuditService): Router {
+export function createMappingTaskRouter(service: MappingTaskService, queue: JobQueueService, auditService?: AuditService): Router {
   const router = Router();
 
   router.post(
@@ -131,6 +132,38 @@ export function createMappingTaskRouter(service: MappingTaskService, auditServic
         }
       });
       res.status(200).json({ item });
+    })
+  );
+
+  router.post(
+    '/api/mapping-tasks/:taskId/run-sync',
+    asyncHandler(async (req, res) => {
+      const taskId = parseTaskId(req.params.taskId);
+      await service.getTaskDetail(taskId);
+
+      const jobs = [
+        queue.enqueue({ kind: 'scan', lane: 'long', mappingTaskId: taskId }),
+        queue.enqueue({ kind: 'rename_detect', lane: 'long', mappingTaskId: taskId, payload: { candidateWindowSeconds: 30 } }),
+        queue.enqueue({
+          kind: 'sync',
+          lane: 'long',
+          mappingTaskId: taskId,
+          payload: { deleteGraceSeconds: 30, renameHintWindowSeconds: 3600 }
+        })
+      ];
+
+      await auditService?.write({
+        operationType: 'sync',
+        targetType: 'mapping_task',
+        targetId: taskId,
+        message: 'Manual sync sequence enqueued',
+        metadataJson: {
+          mappingTaskId: taskId.toString(),
+          jobs: jobs.map((job) => ({ id: job.id, kind: job.kind }))
+        }
+      });
+
+      res.status(202).json({ jobs });
     })
   );
 

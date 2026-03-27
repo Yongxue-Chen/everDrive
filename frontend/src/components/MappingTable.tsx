@@ -1,10 +1,11 @@
-import { formatBytes, formatDate } from '../lib/format';
+import { formatDate, formatGigabytes } from '../lib/format';
 import type { MappingTaskItem, MappingTaskListResponse } from '../lib/types';
 
 type MappingTableProps = {
   items: MappingTaskListResponse['items'];
   pendingTaskId?: string | null;
   onEdit: (item: MappingTaskItem) => void;
+  onRunSync: (item: MappingTaskItem) => void;
   onToggleActive: (item: MappingTaskItem) => void;
   onDelete: (item: MappingTaskItem) => void;
 };
@@ -26,7 +27,7 @@ const modeLabels: Record<MappingTaskItem['sync_mode'], string> = {
   mirror: '镜像'
 };
 
-export function MappingTable({ items, pendingTaskId, onEdit, onToggleActive, onDelete }: MappingTableProps) {
+export function MappingTable({ items, pendingTaskId, onEdit, onRunSync, onToggleActive, onDelete }: MappingTableProps) {
   return (
     <div className="table-wrap">
       <table className="table">
@@ -48,13 +49,13 @@ export function MappingTable({ items, pendingTaskId, onEdit, onToggleActive, onD
               <td className="mono">{item.local_path}</td>
               <td>{modeLabels[item.sync_mode]}</td>
               <td>
-                {item.remotes.map((remote) => (
+                {item.remotes.map((remote, index) => (
                   <div key={`${item.id}-${remote.remoteId}`} className="table__inline">
                     <div>
-                      {remote.displayName}（{roleLabels[remote.role] ?? remote.role}）· 优先级 {remote.priority}
+                      {remote.displayName}（{roleLabels[remote.role] ?? remote.role}）· 顺序 {index + 1}
                     </div>
                     <div className="muted">
-                      目录：{remote.remoteBasePath || '/'} · 可用：{formatBytes(remote.availableCapacityBytes)}
+                      目录：{remote.remoteBasePath || '/'} · 可用：{formatGigabytes(remote.availableCapacityBytes)}
                     </div>
                   </div>
                 ))}
@@ -67,6 +68,9 @@ export function MappingTable({ items, pendingTaskId, onEdit, onToggleActive, onD
                 <div className="table__actions">
                   <button onClick={() => onEdit(item)} disabled={pendingTaskId === item.id}>
                     编辑
+                  </button>
+                  <button onClick={() => onRunSync(item)} disabled={pendingTaskId === item.id || item.status === 'deleted'}>
+                    手动同步
                   </button>
                   <button onClick={() => onToggleActive(item)} disabled={pendingTaskId === item.id || item.status === 'deleted'}>
                     {item.status === 'active' ? '停用' : '启用'}

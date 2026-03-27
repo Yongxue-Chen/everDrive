@@ -11,6 +11,7 @@ export class AutoSyncSchedulerService {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private readonly getCloudTrashSettings: CloudTrashSettingsProvider;
+  private readonly getSyncIntervalSeconds: () => number;
   private readonly hasCloudTrashEnabledRemotes: CloudTrashEnabledRemoteProvider;
   private readonly now: () => Date;
   private lastCleanupEnqueuedAt: Date | null = null;
@@ -21,6 +22,7 @@ export class AutoSyncSchedulerService {
     private readonly intervalSeconds: number,
     options?: {
       getCloudTrashSettings?: CloudTrashSettingsProvider;
+      getSyncIntervalSeconds?: () => number;
       hasCloudTrashEnabledRemotes?: CloudTrashEnabledRemoteProvider;
       now?: () => Date;
     }
@@ -35,6 +37,7 @@ export class AutoSyncSchedulerService {
         maxDeleteBatchPerRun: 1000
       }));
     this.hasCloudTrashEnabledRemotes = options?.hasCloudTrashEnabledRemotes ?? (async () => false);
+    this.getSyncIntervalSeconds = options?.getSyncIntervalSeconds ?? (() => this.intervalSeconds);
     this.now = options?.now ?? (() => new Date());
   }
 
@@ -42,12 +45,22 @@ export class AutoSyncSchedulerService {
     if (this.timer) {
       return;
     }
-    const intervalMs = Math.max(1, this.intervalSeconds) * 1000;
+    const intervalSeconds = Math.max(1, this.getSyncIntervalSeconds());
+    const intervalMs = intervalSeconds * 1000;
     this.timer = setInterval(() => {
       void this.runCycle();
     }, intervalMs);
     void this.runCycle();
-    this.log.info('auto sync scheduler started', { intervalSeconds: this.intervalSeconds });
+    this.log.info('auto sync scheduler started', { intervalSeconds });
+  }
+
+  refreshSchedule(): void {
+    if (!this.timer) {
+      return;
+    }
+
+    this.stop();
+    this.start();
   }
 
   stop(): void {

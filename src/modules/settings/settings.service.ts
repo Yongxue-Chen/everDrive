@@ -26,6 +26,9 @@ function cloneSettings(settings: CompleteSettings): CompleteSettings {
     defaultConcurrency: {
       ...settings.defaultConcurrency
     },
+    syncProfile: {
+      ...settings.syncProfile
+    },
     cloudTrash: {
       ...settings.cloudTrash
     }
@@ -44,6 +47,10 @@ function normalizeSettings(defaults: CompleteSettings, loaded: Settings): Comple
       ...defaults.defaultConcurrency,
       ...loaded.defaultConcurrency
     },
+    syncProfile: {
+      ...defaults.syncProfile,
+      ...loaded.syncProfile
+    },
     cloudTrash: {
       ...defaults.cloudTrash,
       ...(loaded.cloudTrash ?? {})
@@ -53,6 +60,7 @@ function normalizeSettings(defaults: CompleteSettings, loaded: Settings): Comple
 
 export class SettingsService {
   private settings: CompleteSettings;
+  private readonly listeners = new Set<(settings: Settings) => void>();
 
   private constructor(initialSettings: CompleteSettings, private readonly repository: SettingsRepository) {
     this.settings = initialSettings;
@@ -80,6 +88,13 @@ export class SettingsService {
       defaultCapacityWarningThresholdPercent: 85,
       hashAlgorithm: 'sha1',
       logLevel: env.LOG_LEVEL,
+      syncProfile: {
+        transfers: 1,
+        checkers: 1,
+        bufferSizeMiB: 8,
+        tpsLimit: 2,
+        bwLimitMiB: 4
+      },
       cloudTrash: {
         enabled: false,
         retentionDays: 30,
@@ -107,6 +122,13 @@ export class SettingsService {
     return cloneSettings(this.settings);
   }
 
+  subscribe(listener: (settings: Settings) => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
   async update(input: UpdateSettingsInput): Promise<SettingsView> {
     const merged: CompleteSettings = {
       ...this.settings,
@@ -118,6 +140,10 @@ export class SettingsService {
       defaultConcurrency: {
         ...this.settings.defaultConcurrency,
         ...input.defaultConcurrency
+      },
+      syncProfile: {
+        ...this.settings.syncProfile,
+        ...(input.syncProfile ?? {})
       },
       cloudTrash: {
         ...this.settings.cloudTrash,
@@ -150,6 +176,11 @@ export class SettingsService {
       [merged.defaultConcurrency.jobRemoteLimit !== this.settings.defaultConcurrency.jobRemoteLimit, 'defaultConcurrency.jobRemoteLimit'],
       [merged.defaultCapacityWarningThresholdPercent !== this.settings.defaultCapacityWarningThresholdPercent, 'defaultCapacityWarningThresholdPercent'],
       [merged.hashAlgorithm !== this.settings.hashAlgorithm, 'hashAlgorithm'],
+      [merged.syncProfile.transfers !== this.settings.syncProfile.transfers, 'syncProfile.transfers'],
+      [merged.syncProfile.checkers !== this.settings.syncProfile.checkers, 'syncProfile.checkers'],
+      [merged.syncProfile.bufferSizeMiB !== this.settings.syncProfile.bufferSizeMiB, 'syncProfile.bufferSizeMiB'],
+      [merged.syncProfile.tpsLimit !== this.settings.syncProfile.tpsLimit, 'syncProfile.tpsLimit'],
+      [merged.syncProfile.bwLimitMiB !== this.settings.syncProfile.bwLimitMiB, 'syncProfile.bwLimitMiB'],
       [merged.cloudTrash.enabled !== this.settings.cloudTrash.enabled, 'cloudTrash.enabled'],
       [merged.cloudTrash.retentionDays !== this.settings.cloudTrash.retentionDays, 'cloudTrash.retentionDays'],
       [merged.cloudTrash.cleanupIntervalHours !== this.settings.cloudTrash.cleanupIntervalHours, 'cloudTrash.cleanupIntervalHours'],
@@ -169,6 +200,9 @@ export class SettingsService {
 
     this.settings = merged;
     await this.repository.save(this.settings);
+    for (const listener of this.listeners) {
+      listener(this.getCurrentConfig());
+    }
 
     return this.toView(this.settings, {
       hotUpdatedKeys,
@@ -203,6 +237,9 @@ export class SettingsService {
         defaultCapacityWarningThresholdPercent: settings.defaultCapacityWarningThresholdPercent,
         hashAlgorithm: settings.hashAlgorithm,
         logLevel: settings.logLevel,
+        syncProfile: {
+          ...settings.syncProfile
+        },
         cloudTrash: {
           ...settings.cloudTrash
         }

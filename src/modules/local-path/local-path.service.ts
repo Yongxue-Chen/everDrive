@@ -72,7 +72,17 @@ export class LocalPathService {
   }
 
   private isAllowed(candidate: string): boolean {
-    return this.allowedRoots.some((root) => candidate === root || candidate.startsWith(root + path.sep));
+    return this.allowedRoots.some((root) => {
+      if (candidate === root) {
+        return true;
+      }
+
+      if (root === path.sep) {
+        return candidate.startsWith(path.sep);
+      }
+
+      return candidate.startsWith(root + path.sep);
+    });
   }
 
   private async ensureDirectory(targetPath: string): Promise<void> {

@@ -59,6 +59,13 @@ describe('frontend settings api', () => {
             defaultCapacityWarningThresholdPercent: 85,
             hashAlgorithm: 'sha1',
             logLevel: 'info',
+            syncProfile: {
+              transfers: 1,
+              checkers: 1,
+              bufferSizeMiB: 8,
+              tpsLimit: 2,
+              bwLimitMiB: 4
+            },
             cloudTrash: {
               enabled: true,
               retentionDays: 14,
@@ -77,6 +84,14 @@ describe('frontend settings api', () => {
     } as Response);
 
     const result = await updateSettings({
+      defaultScanIntervalSeconds: 300,
+      syncProfile: {
+        transfers: 1,
+        checkers: 1,
+        bufferSizeMiB: 8,
+        tpsLimit: 2,
+        bwLimitMiB: 4
+      },
       cloudTrash: {
         retentionDays: 14,
         cleanupIntervalHours: 6,
@@ -90,6 +105,14 @@ describe('frontend settings api', () => {
       expect.objectContaining({
         method: 'PUT',
         body: JSON.stringify({
+          defaultScanIntervalSeconds: 300,
+          syncProfile: {
+            transfers: 1,
+            checkers: 1,
+            bufferSizeMiB: 8,
+            tpsLimit: 2,
+            bwLimitMiB: 4
+          },
           cloudTrash: {
             retentionDays: 14,
             cleanupIntervalHours: 6,

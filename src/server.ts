@@ -63,7 +63,7 @@ async function bootstrap(): Promise<void> {
   const remoteRouter = createRemoteRouter(cloudInventoryService, jobQueue, auditService);
   const mappingTaskRepository = new MappingTaskPrismaRepository(database.prisma);
   const mappingTaskService = new MappingTaskService(mappingTaskRepository);
-  const mappingTaskRouter = createMappingTaskRouter(mappingTaskService, auditService);
+  const mappingTaskRouter = createMappingTaskRouter(mappingTaskService, jobQueue, auditService);
   const scanRepository = new ScanRepository(database.prisma);
   const scanService = new ScanService(scanRepository);
   const scanRouter = createScanRouter(scanService, jobQueue);
@@ -94,6 +94,7 @@ async function bootstrap(): Promise<void> {
   const metricsService = new MetricsService(database.prisma);
   const metricsRouter = createMetricsRouter(metricsService);
   const settingsService = await SettingsService.create();
+  rcloneClient.setExecutionProfileProvider(() => settingsService.getCurrentConfig().syncProfile);
   const settingsRouter = createSettingsRouter(settingsService, auditService);
   const localPathService = new LocalPathService(env.LOCAL_PATH_ALLOWED_ROOTS.split(','));
   const localPathRouter = createLocalPathRouter(localPathService);
@@ -116,14 +117,17 @@ async function bootstrap(): Promise<void> {
     async () => mappingTaskService.listActiveTaskIds(),
     env.SCAN_INTERVAL_SECONDS,
     {
-      getCloudTrashSettings: () => settingsService.getCurrentConfig().cloudTrash
-      ,
+      getCloudTrashSettings: () => settingsService.getCurrentConfig().cloudTrash,
+      getSyncIntervalSeconds: () => settingsService.getCurrentConfig().defaultScanIntervalSeconds,
       hasCloudTrashEnabledRemotes: async () => {
         const remotes = await cloudInventoryRepository.listRemotes();
         return remotes.some((remote) => remote.isActive && remote.cloudTrashEnabled && remote.cloudTrashBasePath.trim().length > 0);
       }
     }
   );
+  settingsService.subscribe(() => {
+    autoSyncScheduler.refreshSchedule();
+  });
 
   jobQueue.registerHandler('scan', async (job) => {
     if (!job.mappingTaskId) {

@@ -29,6 +29,13 @@ describe('SettingsService', () => {
       defaultCapacityWarningThresholdPercent: 85,
       hashAlgorithm: 'sha1',
       logLevel: 'info',
+      syncProfile: {
+        transfers: 1,
+        checkers: 1,
+        bufferSizeMiB: 8,
+        tpsLimit: 2,
+        bwLimitMiB: 4
+      },
       cloudTrash: {
         enabled: false,
         retentionDays: 30,
@@ -47,6 +54,7 @@ describe('SettingsService', () => {
     const current = service.getCurrent();
     expect(current.values.rcloneRcd.passMasked).not.toBe(initial.rcloneRcd.pass);
     expect(current.values.rcloneRcd.hasPassword).toBe(true);
+    expect(current.values.syncProfile).toEqual(initial.syncProfile);
 
     const updated = await service.update({ logLevel: 'debug' });
     expect(updated.values.logLevel).toBe('debug');
@@ -74,6 +82,13 @@ describe('SettingsService', () => {
       defaultCapacityWarningThresholdPercent: 85,
       hashAlgorithm: 'sha1',
       logLevel: 'info',
+      syncProfile: {
+        transfers: 1,
+        checkers: 1,
+        bufferSizeMiB: 8,
+        tpsLimit: 2,
+        bwLimitMiB: 4
+      },
       cloudTrash: {
         enabled: false,
         retentionDays: 30,
@@ -119,6 +134,13 @@ describe('SettingsService', () => {
       defaultCapacityWarningThresholdPercent: 85,
       hashAlgorithm: 'sha1',
       logLevel: 'info',
+      syncProfile: {
+        transfers: 1,
+        checkers: 1,
+        bufferSizeMiB: 8,
+        tpsLimit: 2,
+        bwLimitMiB: 4
+      },
       cloudTrash: {
         enabled: false,
         retentionDays: 14,
@@ -182,7 +204,7 @@ describe('SettingsService', () => {
       defaultCapacityWarningThresholdPercent: 85,
       hashAlgorithm: 'sha1',
       logLevel: 'info'
-    } satisfies Omit<Settings, 'cloudTrash'>;
+    } satisfies Omit<Settings, 'cloudTrash' | 'syncProfile'>;
 
     const repository: Partial<SettingsRepository> = {
       load: vi.fn(async () => legacy as unknown as Settings),
@@ -194,6 +216,13 @@ describe('SettingsService', () => {
     expect(repository.save).not.toHaveBeenCalled();
     expect(service.getCurrentConfig()).toEqual({
       ...legacy,
+      syncProfile: {
+        transfers: 1,
+        checkers: 1,
+        bufferSizeMiB: 8,
+        tpsLimit: 2,
+        bwLimitMiB: 4
+      },
       cloudTrash: {
         enabled: false,
         retentionDays: 30,
@@ -208,6 +237,13 @@ describe('SettingsService', () => {
       cleanupIntervalHours: 24,
       basePath: '.everdrive-trash',
       maxDeleteBatchPerRun: 1000
+    });
+    expect(service.getCurrent().values.syncProfile).toEqual({
+      transfers: 1,
+      checkers: 1,
+      bufferSizeMiB: 8,
+      tpsLimit: 2,
+      bwLimitMiB: 4
     });
   });
 
@@ -234,6 +270,9 @@ describe('SettingsService', () => {
       defaultCapacityWarningThresholdPercent: 85,
       hashAlgorithm: 'sha1',
       logLevel: 'info',
+      syncProfile: {
+        transfers: 1
+      },
       cloudTrash: {
         enabled: true
       }
@@ -249,6 +288,13 @@ describe('SettingsService', () => {
         cleanupIntervalHours: 24,
         basePath: '.everdrive-trash',
         maxDeleteBatchPerRun: 1000
+      });
+      expect(service.getCurrentConfig().syncProfile).toEqual({
+        transfers: 1,
+        checkers: 1,
+        bufferSizeMiB: 8,
+        tpsLimit: 2,
+        bwLimitMiB: 4
       });
       expect(service.getCurrent().values.cloudTrash).toEqual({
         enabled: true,

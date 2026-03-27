@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { RemoteCard } from '../components/RemoteCard';
+import { bytesToGigabyteInput, gigabytesToBytes } from '../lib/format';
 import { fetchCloudRemotes, updateRemoteSettings } from '../lib/api';
 import type { RemotesListResponse } from '../lib/types';
 
@@ -14,8 +15,8 @@ type CapacityFormState = {
 
 function toCapacityForm(item: RemotesListResponse['items'][number]): CapacityFormState {
   return {
-    totalCapacity: item.capacity.totalCapacityBytes,
-    reservedCapacity: item.capacity.reservedCapacityBytes,
+    totalCapacity: bytesToGigabyteInput(item.capacity.totalCapacityBytes),
+    reservedCapacity: bytesToGigabyteInput(item.capacity.reservedCapacityBytes),
     warningThresholdPercent: item.capacity.warningThresholdPercent,
     cloudTrashEnabled: item.cloudTrashEnabled,
     cloudTrashBasePath: item.cloudTrashBasePath
@@ -43,8 +44,8 @@ export function CloudRemotesPage() {
         throw new Error('missing remote');
       }
       return updateRemoteSettings(editingItem.id, {
-        totalCapacity: form.totalCapacity,
-        reservedCapacity: form.reservedCapacity,
+        totalCapacity: gigabytesToBytes(form.totalCapacity),
+        reservedCapacity: gigabytesToBytes(form.reservedCapacity),
         warningThresholdPercent: Number(form.warningThresholdPercent),
         cloudTrashEnabled: form.cloudTrashEnabled,
         cloudTrashBasePath: form.cloudTrashBasePath
@@ -98,16 +99,16 @@ export function CloudRemotesPage() {
           </div>
           <div className="settings-grid">
             <label>
-              总容量（字节）
+              总容量（GB）
               <input value={form.totalCapacity} onChange={(e) => setForm((prev) => ({ ...prev, totalCapacity: e.target.value }))} />
             </label>
             <label>
-              预留容量（字节）
+              预留容量（GB）
               <input value={form.reservedCapacity} onChange={(e) => setForm((prev) => ({ ...prev, reservedCapacity: e.target.value }))} />
             </label>
             <label>
-              已用容量（自动检测）
-              <input value={editingItem.capacity.usedCapacityBytes} readOnly />
+              已用容量（GB，自动检测）
+              <input value={bytesToGigabyteInput(editingItem.capacity.usedCapacityBytes)} readOnly />
             </label>
             <label>
               告警阈值（%）
@@ -132,7 +133,8 @@ export function CloudRemotesPage() {
               </label>
             ) : null}
           </div>
-          <p className="muted">总容量手动维护；已用容量由系统自动统计；自建云端回收站仅在镜像模式删除时生效。</p>
+          <p className="muted">总容量手动维护；已用容量优先读取云盘真实已用；自建云端回收站仅在镜像模式删除时生效。</p>
+          <p className="muted">预留容量是给该云盘预先保留、不允许 everDrive 使用的空间，会直接从可用容量里扣掉。</p>
           {mutation.error ? <p className="error">保存容量设置失败。</p> : null}
           <div className="toggle-row">
             <button onClick={() => mutation.mutate()} disabled={mutation.isPending}>

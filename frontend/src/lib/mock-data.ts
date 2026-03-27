@@ -171,6 +171,13 @@ export const mockSettings: SettingsResponse = {
       defaultCapacityWarningThresholdPercent: 85,
       hashAlgorithm: 'sha1',
       logLevel: 'info',
+      syncProfile: {
+        transfers: 1,
+        checkers: 1,
+        bufferSizeMiB: 8,
+        tpsLimit: 2,
+        bwLimitMiB: 4
+      },
       cloudTrash: {
         enabled: false,
         retentionDays: 30,

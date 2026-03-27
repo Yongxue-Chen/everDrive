@@ -84,4 +84,26 @@ describe('AutoSyncSchedulerService', () => {
 
     expect(queue.enqueueUnique).toHaveBeenCalledWith(expect.objectContaining({ kind: 'cloud_trash_cleanup', lane: 'short' }));
   });
+
+  it('uses the runtime sync interval provider when starting the scheduler', () => {
+    const queue = {
+      enqueueUnique: vi.fn(() => ({}))
+    } as any;
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+    let currentIntervalSeconds = 120;
+
+    const scheduler = new AutoSyncSchedulerService(queue, async () => [], 30, {
+      getSyncIntervalSeconds: () => currentIntervalSeconds
+    });
+
+    scheduler.start();
+    currentIntervalSeconds = 45;
+    scheduler.refreshSchedule();
+    scheduler.stop();
+
+    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 120_000);
+    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 45_000);
+    expect(clearIntervalSpy).toHaveBeenCalled();
+  });
 });

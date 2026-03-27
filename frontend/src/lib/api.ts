@@ -103,7 +103,7 @@ function buildRemoteView(
     remoteName: remote?.remoteName ?? `remote-${binding.remoteId}`,
     displayName: remote?.displayName ?? `云盘 ${binding.remoteId}`,
     role: mode,
-    priority: binding.priority ?? (index + 1) * 100,
+    priority: binding.priority ?? index + 1,
     remoteBasePath: binding.remoteBasePath ?? '',
     is_active: remote?.isActive ?? true,
     healthStatus: remote?.healthStatus ?? 'healthy',
@@ -216,6 +216,21 @@ export async function setMappingTaskActive(taskId: string, isActive: boolean): P
   }
 
   return requestJsonWithBody<MappingTaskMutationResponse>(`/api/mapping-tasks/${taskId}/active`, 'PATCH', { isActive });
+}
+
+export async function runMappingTaskSync(taskId: string): Promise<{ jobs: QueueJob[] }> {
+  if (getApiMode() === 'mock') {
+    await sleep(120);
+    return {
+      jobs: [
+        { ...mockJob, id: `${taskId}-scan`, kind: 'scan', mappingTaskId: taskId },
+        { ...mockJob, id: `${taskId}-rename`, kind: 'rename_detect', mappingTaskId: taskId },
+        { ...mockJob, id: `${taskId}-sync`, kind: 'sync', mappingTaskId: taskId }
+      ]
+    };
+  }
+
+  return requestJsonWithBody<{ jobs: QueueJob[] }>(`/api/mapping-tasks/${taskId}/run-sync`, 'POST');
 }
 
 export async function deleteMappingTask(taskId: string): Promise<MappingTaskDeleteResponse> {

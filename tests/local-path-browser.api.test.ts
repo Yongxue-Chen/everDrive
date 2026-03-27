@@ -65,6 +65,23 @@ describe('local path browser API', () => {
     expect(Array.isArray(response.body.items)).toBe(true);
   });
 
+  it('allows browsing child directories under the system root when root is allowed', async () => {
+    const localPathService = new LocalPathService(['/']);
+    const app = createApp({
+      checkDb: async () => true,
+      checkRclone: async () => true,
+      localPathRouter: createLocalPathRouter(localPathService)
+    });
+
+    const response = await request(app).get('/api/local-paths').query({
+      path: '/etc'
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.currentPath).toBe('/etc');
+    expect(Array.isArray(response.body.items)).toBe(true);
+  });
+
   it('rejects paths outside the allowed roots', async () => {
     const localPathService = new LocalPathService([rootDir]);
     const app = createApp({

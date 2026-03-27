@@ -223,6 +223,13 @@ export type SettingsItem = {
     defaultCapacityWarningThresholdPercent: number;
     hashAlgorithm: 'md5' | 'sha1' | 'sha256' | 'blake3';
     logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+    syncProfile: {
+      transfers: number;
+      checkers: number;
+      bufferSizeMiB: number;
+      tpsLimit: number;
+      bwLimitMiB: number;
+    };
     cloudTrash: {
       enabled: boolean;
       retentionDays: number;
@@ -262,6 +269,13 @@ export type UpdateSettingsPayload = {
   defaultCapacityWarningThresholdPercent?: number;
   hashAlgorithm?: 'md5' | 'sha1' | 'sha256' | 'blake3';
   logLevel?: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+  syncProfile?: {
+    transfers?: number;
+    checkers?: number;
+    bufferSizeMiB?: number;
+    tpsLimit?: number;
+    bwLimitMiB?: number;
+  };
   cloudTrash?: {
     enabled?: boolean;
     retentionDays?: number;

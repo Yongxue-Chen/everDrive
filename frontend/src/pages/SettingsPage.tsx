@@ -23,6 +23,11 @@ export function SettingsPage() {
     warningThreshold: 85,
     hashAlgorithm: 'sha1',
     logLevel: 'info',
+    syncTransfers: 1,
+    syncCheckers: 1,
+    syncBufferSizeMiB: 8,
+    syncTpsLimit: 2,
+    syncBwLimitMiB: 4,
     cloudTrashRetentionDays: 30,
     cloudTrashCleanupIntervalHours: 24,
     cloudTrashMaxDeleteBatchPerRun: 1000
@@ -53,6 +58,11 @@ export function SettingsPage() {
       warningThreshold: values.defaultCapacityWarningThresholdPercent,
       hashAlgorithm: values.hashAlgorithm,
       logLevel: values.logLevel,
+      syncTransfers: values.syncProfile.transfers,
+      syncCheckers: values.syncProfile.checkers,
+      syncBufferSizeMiB: values.syncProfile.bufferSizeMiB,
+      syncTpsLimit: values.syncProfile.tpsLimit,
+      syncBwLimitMiB: values.syncProfile.bwLimitMiB,
       cloudTrashRetentionDays: values.cloudTrash.retentionDays,
       cloudTrashCleanupIntervalHours: values.cloudTrash.cleanupIntervalHours,
       cloudTrashMaxDeleteBatchPerRun: values.cloudTrash.maxDeleteBatchPerRun
@@ -80,6 +90,13 @@ export function SettingsPage() {
       defaultCapacityWarningThresholdPercent: Number(form.warningThreshold),
       hashAlgorithm: form.hashAlgorithm as 'md5' | 'sha1' | 'sha256' | 'blake3',
       logLevel: form.logLevel as 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace',
+      syncProfile: {
+        transfers: Number(form.syncTransfers),
+        checkers: Number(form.syncCheckers),
+        bufferSizeMiB: Number(form.syncBufferSizeMiB),
+        tpsLimit: Number(form.syncTpsLimit),
+        bwLimitMiB: Number(form.syncBwLimitMiB)
+      },
       cloudTrash: {
         retentionDays: Number(form.cloudTrashRetentionDays),
         cleanupIntervalHours: Number(form.cloudTrashCleanupIntervalHours),
@@ -124,9 +141,13 @@ export function SettingsPage() {
               <p className="muted">当前密码：{values.rcloneRcd.passMasked}</p>
             </div>
             <label>
-              扫描间隔（秒）
+              自动同步频率（秒）
               <input type="number" value={form.scanInterval} onChange={(e) => setForm((prev) => ({ ...prev, scanInterval: Number(e.target.value) }))} />
             </label>
+            <div className="panel panel--neutral settings-note">
+              <strong>保守同步参数</strong>
+              <p className="muted">这组参数会统一下发给所有自动/手动同步，目标是更安全、更慢，适合云盘备份。</p>
+            </div>
             <label>
               同步并发数
               <input type="number" value={form.syncConcurrency} onChange={(e) => setForm((prev) => ({ ...prev, syncConcurrency: Number(e.target.value) }))} />
@@ -182,6 +203,26 @@ export function SettingsPage() {
             <label>
               Rclone 重试延迟（毫秒）
               <input type="number" value={form.retryDelayMs} onChange={(e) => setForm((prev) => ({ ...prev, retryDelayMs: Number(e.target.value) }))} />
+            </label>
+            <label>
+              Transfers
+              <input type="number" value={form.syncTransfers} onChange={(e) => setForm((prev) => ({ ...prev, syncTransfers: Number(e.target.value) }))} />
+            </label>
+            <label>
+              Checkers
+              <input type="number" value={form.syncCheckers} onChange={(e) => setForm((prev) => ({ ...prev, syncCheckers: Number(e.target.value) }))} />
+            </label>
+            <label>
+              Buffer Size（MiB）
+              <input type="number" value={form.syncBufferSizeMiB} onChange={(e) => setForm((prev) => ({ ...prev, syncBufferSizeMiB: Number(e.target.value) }))} />
+            </label>
+            <label>
+              TPS Limit
+              <input type="number" value={form.syncTpsLimit} onChange={(e) => setForm((prev) => ({ ...prev, syncTpsLimit: Number(e.target.value) }))} />
+            </label>
+            <label>
+              带宽上限（MiB/s）
+              <input type="number" value={form.syncBwLimitMiB} onChange={(e) => setForm((prev) => ({ ...prev, syncBwLimitMiB: Number(e.target.value) }))} />
             </label>
             <label>
               回收站保留天数

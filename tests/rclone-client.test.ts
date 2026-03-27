@@ -53,6 +53,33 @@ describe('RcloneClient', () => {
     await expect(client.listRemotes()).resolves.toEqual(['driveA', 'driveB']);
   });
 
+  it('loads remote capacity stats through operations/about', async () => {
+    const fetchMock = vi.fn(async () =>
+      createJsonResponse(200, {
+        total: 1000,
+        used: 250,
+        free: 750
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new RcloneClient({
+      baseUrl: 'http://127.0.0.1:5572',
+      user: 'everdrive',
+      pass: '123456'
+    });
+
+    await expect(client.getAbout('driveA:')).resolves.toEqual({
+      total: '1000',
+      used: '250',
+      free: '750'
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:5572/operations/about',
+      expect.objectContaining({ method: 'POST' })
+    );
+  });
+
   it('retries transient network errors and then succeeds', async () => {
     const fetchMock = vi
       .fn()
@@ -168,6 +195,41 @@ describe('RcloneClient', () => {
         async: true
       })
     ).resolves.toEqual({ async: true, jobId: 42 });
+  });
+
+  it('includes conservative execution profile in transfer calls', async () => {
+    const fetchMock = vi.fn(async () => createJsonResponse(200, {}));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new RcloneClient({
+      baseUrl: 'http://127.0.0.1:5572',
+      user: 'everdrive',
+      pass: '123456',
+      getExecutionProfile: () => ({
+        transfers: 1,
+        checkers: 1,
+        bufferSizeMiB: 8,
+        tpsLimit: 2,
+        bwLimitMiB: 4
+      })
+    });
+
+    await client.copy({
+      srcFs: '/data/source',
+      srcRemote: '',
+      dstFs: 'driveA:',
+      dstRemote: 'backup'
+    });
+
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit] | undefined;
+    const body = JSON.parse((call?.[1].body as string) ?? '{}');
+    expect(body._config).toMatchObject({
+      Transfers: 1,
+      Checkers: 1,
+      BufferSize: 8 * 1024 * 1024,
+      TPSLimit: 2,
+      BwLimit: '4M'
+    });
   });
 
   it('sends basic auth header for rclone requests', async () => {
