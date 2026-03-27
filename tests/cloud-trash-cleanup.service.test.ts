@@ -31,7 +31,13 @@ describe('CloudTrashCleanupService', () => {
         })
       } as any,
       listActiveRemotes: async () => [
-        { id: 1n, remoteName: 'alpha', cloudTrashEnabled: true, cloudTrashBasePath: 'trash-a' },
+        {
+          id: 1n,
+          remoteName: 'alpha',
+          remoteRootPath: 'tenant-a',
+          cloudTrashEnabled: true,
+          cloudTrashBasePath: 'trash-a'
+        } as any,
         { id: 2n, remoteName: 'beta', cloudTrashEnabled: false, cloudTrashBasePath: 'trash-b' }
       ],
       remoteClient,
@@ -42,11 +48,11 @@ describe('CloudTrashCleanupService', () => {
 
     expect(remoteClient.list).toHaveBeenCalledTimes(1);
     expect(remoteClient.list).toHaveBeenCalledWith({
-      fs: 'alpha:',
+      fs: 'alpha:tenant-a',
       remote: 'trash-a'
     });
     expect(remoteClient.purge).toHaveBeenCalledWith({
-      fs: 'alpha:',
+      fs: 'alpha:tenant-a',
       remote: 'trash-a/2026/02/20'
     });
     expect(summary.scannedRemotes).toBe(1);

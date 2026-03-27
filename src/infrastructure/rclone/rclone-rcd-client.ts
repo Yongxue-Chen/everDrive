@@ -103,6 +103,7 @@ export interface IRcloneClient {
   checkOnline(): Promise<boolean>;
   listRemotes(): Promise<string[]>;
   getAbout(fs: string): Promise<RcloneAboutResult>;
+  stat(fs: string, remote: string): Promise<boolean>;
   getConfigProviders(): Promise<RcloneConfigProviders>;
   copy(input: TransferOperationInput): Promise<RcloneOperationResult>;
   sync(input: TransferOperationInput): Promise<RcloneOperationResult>;
@@ -187,12 +188,20 @@ export class RcloneClient implements IRcloneClient {
     };
   }
 
+  async stat(fs: string, remote: string): Promise<boolean> {
+    const response = await this.post<{ item?: Record<string, unknown> | null }>('operations/stat', {
+      fs,
+      remote
+    });
+    return response.item !== null && response.item !== undefined;
+  }
+
   async getConfigProviders(): Promise<RcloneConfigProviders> {
     return this.post<RcloneConfigProviders>('config/providers', {});
   }
 
   async copy(input: TransferOperationInput): Promise<RcloneOperationResult> {
-    return this.transfer('sync/copy', input);
+    return this.transfer('operations/copyfile', input);
   }
 
   async sync(input: TransferOperationInput): Promise<RcloneOperationResult> {
@@ -200,7 +209,7 @@ export class RcloneClient implements IRcloneClient {
   }
 
   async move(input: TransferOperationInput): Promise<RcloneOperationResult> {
-    return this.transfer('sync/move', input);
+    return this.transfer('operations/movefile', input);
   }
 
   async copyRemoteToRemote(input: TransferOperationInput): Promise<RcloneOperationResult> {

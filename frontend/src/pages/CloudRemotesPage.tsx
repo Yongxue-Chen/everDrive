@@ -9,6 +9,7 @@ type CapacityFormState = {
   totalCapacity: string;
   reservedCapacity: string;
   warningThresholdPercent: number;
+  remoteRootPath: string;
   cloudTrashEnabled: boolean;
   cloudTrashBasePath: string;
 };
@@ -18,6 +19,7 @@ function toCapacityForm(item: RemotesListResponse['items'][number]): CapacityFor
     totalCapacity: bytesToGigabyteInput(item.capacity.totalCapacityBytes),
     reservedCapacity: bytesToGigabyteInput(item.capacity.reservedCapacityBytes),
     warningThresholdPercent: item.capacity.warningThresholdPercent,
+    remoteRootPath: item.remoteRootPath,
     cloudTrashEnabled: item.cloudTrashEnabled,
     cloudTrashBasePath: item.cloudTrashBasePath
   };
@@ -30,6 +32,7 @@ export function CloudRemotesPage() {
     totalCapacity: '',
     reservedCapacity: '',
     warningThresholdPercent: 85,
+    remoteRootPath: '',
     cloudTrashEnabled: false,
     cloudTrashBasePath: '.everdrive-trash'
   });
@@ -47,6 +50,7 @@ export function CloudRemotesPage() {
         totalCapacity: gigabytesToBytes(form.totalCapacity),
         reservedCapacity: gigabytesToBytes(form.reservedCapacity),
         warningThresholdPercent: Number(form.warningThresholdPercent),
+        remoteRootPath: form.remoteRootPath.trim(),
         cloudTrashEnabled: form.cloudTrashEnabled,
         cloudTrashBasePath: form.cloudTrashBasePath
       });
@@ -76,6 +80,7 @@ export function CloudRemotesPage() {
               usedCapacity={item.capacity.usedCapacityBytes}
               remainingCapacity={item.capacity.remainingCapacityBytes}
               warningFlag={item.capacity.alert}
+              usageKnown={item.capacity.realUsageAvailable}
             />
             <div className="panel__actions remote-actions">
               <button
@@ -108,7 +113,12 @@ export function CloudRemotesPage() {
             </label>
             <label>
               已用容量（GB，自动检测）
-              <input value={bytesToGigabyteInput(editingItem.capacity.usedCapacityBytes)} readOnly />
+              <input
+                value={
+                  editingItem.capacity.realUsageAvailable ? bytesToGigabyteInput(editingItem.capacity.usedCapacityBytes) : '不可读取'
+                }
+                readOnly
+              />
             </label>
             <label>
               告警阈值（%）
@@ -116,6 +126,14 @@ export function CloudRemotesPage() {
                 type="number"
                 value={form.warningThresholdPercent}
                 onChange={(e) => setForm((prev) => ({ ...prev, warningThresholdPercent: Number(e.target.value) }))}
+              />
+            </label>
+            <label>
+              远端根路径 / 容器前缀
+              <input
+                value={form.remoteRootPath}
+                onChange={(e) => setForm((prev) => ({ ...prev, remoteRootPath: e.target.value }))}
+                placeholder="例如 chandler.yx.chen@gmail.com"
               />
             </label>
             <label>
@@ -133,7 +151,8 @@ export function CloudRemotesPage() {
               </label>
             ) : null}
           </div>
-          <p className="muted">总容量手动维护；已用容量优先读取云盘真实已用；自建云端回收站仅在镜像模式删除时生效。</p>
+          <p className="muted">总容量手动维护；已用容量优先读取云盘真实已用；如果云盘接口不支持读取，会显示“不可读取”；自建云端回收站仅在镜像模式删除时生效。</p>
+          <p className="muted">“远端根路径 / 容器前缀”默认留空。只有像 Blomp 这类必须先进入容器路径的 remote 才需要填写，例如 `chandler.yx.chen@gmail.com`。</p>
           <p className="muted">预留容量是给该云盘预先保留、不允许 everDrive 使用的空间，会直接从可用容量里扣掉。</p>
           {mutation.error ? <p className="error">保存容量设置失败。</p> : null}
           <div className="toggle-row">

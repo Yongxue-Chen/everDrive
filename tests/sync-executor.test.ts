@@ -25,6 +25,7 @@ function rcloneStub(overrides: Partial<IRcloneClient> = {}): IRcloneClient {
     checkOnline: vi.fn(async () => true),
     listRemotes: vi.fn(async () => []),
     getAbout: vi.fn(async () => ({ total: null, used: null, free: null })),
+    stat: vi.fn(async () => true),
     getConfigProviders: vi.fn(async () => ({ providers: [] })),
     copy: vi.fn(async () => ({ async: false as const, result: {} })),
     sync: vi.fn(async () => ({ async: false as const, result: {} })),

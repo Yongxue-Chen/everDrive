@@ -2,6 +2,7 @@ import path from 'node:path';
 import { AppError } from '../../errors/app-error.js';
 import { RcloneService } from '../../infrastructure/rclone/rclone.service.js';
 import { logger } from '../../lib/logger.js';
+import { buildRemoteFs } from '../remote/remote-fs.js';
 import { MigrationRepository } from './migration.repository.js';
 
 export type MigrationInput = {
@@ -73,9 +74,9 @@ export class MigrationService {
 
     try {
       const copyResult = await this.rcloneService.remoteToRemoteCopy({
-        sourceRemote: `${sourceRemote.remoteName}:`,
+        sourceRemote: buildRemoteFs(sourceRemote.remoteName, sourceRemote.remoteRootPath),
         sourcePath: scopePath,
-        targetRemote: `${targetRemote.remoteName}:`,
+        targetRemote: buildRemoteFs(targetRemote.remoteName, targetRemote.remoteRootPath),
         targetPath,
         async: false
       });

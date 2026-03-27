@@ -2,6 +2,7 @@ import path from 'node:path';
 import { FileSyncStatus, ScanStatus } from '@prisma/client';
 import type { IRcloneClient } from '../../infrastructure/rclone/rclone-rcd-client.js';
 import { logger } from '../../lib/logger.js';
+import { buildRemoteFs } from '../remote/remote-fs.js';
 import { RedundancyBackupService } from '../redundancy/redundancy-backup.service.js';
 import { SyncEngineRepository } from './sync-engine.repository.js';
 import type { DeleteAction, RenameAction, SyncPlan, UploadAction } from './sync-planner.service.js';
@@ -116,9 +117,9 @@ export class SyncExecutor {
     for (const target of action.targets) {
       try {
         await this.rcloneClient.move({
-          srcFs: `${target.remoteName}:`,
+          srcFs: target.remoteFs ?? buildRemoteFs(target.remoteName),
           srcRemote: target.remotePath,
-          dstFs: `${target.remoteName}:`,
+          dstFs: target.remoteFs ?? buildRemoteFs(target.remoteName),
           dstRemote: this.toRemotePath(action.toPath, plan.localBasePath),
           async: false
         });
@@ -171,6 +172,7 @@ export class SyncExecutor {
         if (shouldMoveToTrash) {
           const trashRemotePath = await this.moveToCloudTrash(
             target.remoteName,
+            target.remoteFs ?? buildRemoteFs(target.remoteName),
             target.remotePath,
             plan.mappingTaskId,
             cloudTrashBasePath!
@@ -191,7 +193,7 @@ export class SyncExecutor {
           });
         } else {
           await this.rcloneClient.deleteFile({
-            fs: `${target.remoteName}:`,
+            fs: target.remoteFs ?? buildRemoteFs(target.remoteName),
             remote: target.remotePath,
             async: false
           });
@@ -220,14 +222,20 @@ export class SyncExecutor {
     }
   }
 
-  private async moveToCloudTrash(remoteName: string, remotePath: string, mappingTaskId: string, basePath: string): Promise<string> {
+  private async moveToCloudTrash(
+    remoteName: string,
+    remoteFs: string,
+    remotePath: string,
+    mappingTaskId: string,
+    basePath: string
+  ): Promise<string> {
     const trashRemotePath = this.buildCloudTrashRemotePath(basePath, mappingTaskId, remotePath);
 
     try {
       await this.rcloneClient.move({
-        srcFs: `${remoteName}:`,
+        srcFs: remoteFs,
         srcRemote: remotePath,
-        dstFs: `${remoteName}:`,
+        dstFs: remoteFs,
         dstRemote: trashRemotePath,
         async: false
       });
@@ -244,9 +252,9 @@ export class SyncExecutor {
         this.buildTrashTimestampSuffix()
       );
       await this.rcloneClient.move({
-        srcFs: `${remoteName}:`,
+        srcFs: remoteFs,
         srcRemote: remotePath,
-        dstFs: `${remoteName}:`,
+        dstFs: remoteFs,
         dstRemote: retryTrashRemotePath,
         async: false
       });

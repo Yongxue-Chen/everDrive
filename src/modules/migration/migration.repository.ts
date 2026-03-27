@@ -11,6 +11,7 @@ export type MigrationTaskContext = {
 export type MigrationRemoteContext = {
   id: bigint;
   remoteName: string;
+  remoteRootPath: string;
   isActive: boolean;
   totalCapacity: bigint;
   usedCapacity: bigint;
@@ -39,6 +40,7 @@ export class MigrationRepository {
       select: {
         id: true,
         remoteName: true,
+        remoteRootPath: true,
         isActive: true,
         totalCapacity: true,
         usedCapacity: true,

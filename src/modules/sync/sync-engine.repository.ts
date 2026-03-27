@@ -17,6 +17,7 @@ export type SyncContext = {
     remote: {
       id: bigint;
       remoteName: string;
+      remoteRootPath: string;
       isActive: boolean;
       cloudTrashEnabled: boolean;
       cloudTrashBasePath: string;
@@ -53,7 +54,7 @@ export class SyncEngineRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async findSyncContext(mappingTaskId: bigint): Promise<SyncContext | null> {
-    return this.prisma.mappingTask.findFirst({
+    const task = (await this.prisma.mappingTask.findFirst({
       where: {
         id: mappingTaskId,
         isActive: true,
@@ -79,6 +80,7 @@ export class SyncEngineRepository {
               select: {
                 id: true,
                 remoteName: true,
+                remoteRootPath: true,
                 isActive: true,
                 cloudTrashEnabled: true,
                 cloudTrashBasePath: true,
@@ -113,7 +115,41 @@ export class SyncEngineRepository {
           }
         }
       }
-    }) as unknown as SyncContext | null;
+    })) as any;
+
+    if (!task) {
+      return null;
+    }
+
+    return {
+      id: task.id,
+      name: task.name,
+      localPath: task.localPath,
+      syncMode: task.syncMode,
+      encryptionEnabled: task.encryptionEnabled,
+      splitEnabled: task.splitEnabled,
+      isActive: task.isActive,
+      deletedAt: task.deletedAt,
+      remotes: task.mappingTaskRemotes.map((item: any) => ({
+        remoteId: item.remoteId,
+        priority: item.priority,
+        role: item.role,
+        remoteBasePath: item.remoteBasePath,
+        remote: {
+          id: item.remote.id,
+          remoteName: item.remote.remoteName,
+          remoteRootPath: item.remote.remoteRootPath,
+          isActive: item.remote.isActive,
+          cloudTrashEnabled: item.remote.cloudTrashEnabled,
+          cloudTrashBasePath: item.remote.cloudTrashBasePath,
+          totalCapacity: item.remote.totalCapacity,
+          usedCapacity: item.remote.usedCapacity,
+          reservedCapacity: item.remote.reservedCapacity,
+          warningThresholdPercent: item.remote.warningThresholdPercent
+        }
+      })),
+      files: task.files
+    } satisfies SyncContext;
   }
 
   async listRenameHints(fileIds: bigint[], recentSeconds: number): Promise<RenameHint[]> {

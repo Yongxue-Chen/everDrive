@@ -67,6 +67,7 @@ export function MappingTasksPage() {
   const [form, setForm] = useState<MappingFormState>(createEmptyForm());
   const [isPathPickerOpen, setIsPathPickerOpen] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [runSyncNotice, setRunSyncNotice] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ['mapping-tasks'],
     queryFn: fetchMappingTasks,
@@ -125,6 +126,7 @@ export function MappingTasksPage() {
     },
     onSuccess: () => {
       setSubmitError(null);
+      setRunSyncNotice(null);
       setEditingItem(null);
       setForm(createEmptyForm());
       void queryClient.invalidateQueries({ queryKey: ['mapping-tasks'] });
@@ -143,8 +145,12 @@ export function MappingTasksPage() {
 
   const runSyncMutation = useMutation({
     mutationFn: async (item: MappingTaskItem) => runMappingTaskSync(item.id),
-    onSuccess: () => {
+    onSuccess: (_, item) => {
+      setRunSyncNotice(`已开始同步“${item.name}”。系统会依次执行扫描、重命名检测和同步。`);
       void queryClient.invalidateQueries({ queryKey: ['mapping-tasks'] });
+    },
+    onError: () => {
+      setRunSyncNotice(null);
     }
   });
 
@@ -162,17 +168,20 @@ export function MappingTasksPage() {
   const resetForm = () => {
     setEditingItem(null);
     setSubmitError(null);
+    setRunSyncNotice(null);
     setForm(createEmptyForm());
   };
 
   const startEdit = (item: MappingTaskItem) => {
     setSubmitError(null);
+    setRunSyncNotice(null);
     setEditingItem(item);
     setForm(mapItemToForm(item));
   };
 
   const submit = () => {
     setSubmitError(null);
+    setRunSyncNotice(null);
     saveMutation.mutate(form);
   };
 
@@ -427,6 +436,7 @@ export function MappingTasksPage() {
           {submitError ? <p className="error">{submitError}</p> : null}
           {activeMutation.error ? <p className="error">切换映射状态失败。</p> : null}
           {runSyncMutation.error ? <p className="error">手动触发同步失败。</p> : null}
+          {runSyncNotice ? <p>{runSyncNotice}</p> : null}
           {deleteMutation.error ? <p className="error">删除映射失败。</p> : null}
 
           <div className="toggle-row">

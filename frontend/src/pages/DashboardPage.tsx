@@ -40,7 +40,11 @@ export function DashboardPage() {
         ))}
       </section>
 
-      <JobStatusPanel />
+      <JobStatusPanel
+        items={workspaceQuery.data?.items ?? []}
+        isLoading={workspaceQuery.isLoading}
+        error={workspaceQuery.isError}
+      />
     </div>
   );
 }

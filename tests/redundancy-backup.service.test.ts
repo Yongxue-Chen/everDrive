@@ -25,6 +25,7 @@ function rcloneStub(copyImpl?: any): IRcloneClient {
     checkOnline: vi.fn(async () => true),
     listRemotes: vi.fn(async () => []),
     getAbout: vi.fn(async () => ({ total: null, used: null, free: null })),
+    stat: vi.fn(async () => true),
     getConfigProviders: vi.fn(async () => ({ providers: [] })),
     copy: copyImpl ?? vi.fn(async () => ({ async: false as const, result: {} })),
     sync: vi.fn(async () => ({ async: false as const, result: {} })),
@@ -87,5 +88,31 @@ describe('RedundancyBackupService', () => {
       process.env.ENCRYPTION_MASTER_KEY = previous;
       await fs.rm(tempDir, { recursive: true, force: true });
     }
+  });
+
+  it('uploads through remote root path when configured on the target remote', async () => {
+    const copy = vi.fn(async () => ({ async: false as const, result: {} }));
+    const service = new RedundancyBackupService(repoStub(), rcloneStub(copy));
+
+    await service.uploadFileToTargets({
+      fileId: '1',
+      localPath: '/data/a.jpg',
+      reason: 'new_file',
+      targets: [
+        {
+          remoteId: '11',
+          remoteName: 'myBlomp',
+          remoteFs: 'myBlomp:chandler.yx.chen@gmail.com',
+          remotePath: 'testmucis/a.jpg'
+        } as any
+      ]
+    });
+
+    expect(copy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dstFs: 'myBlomp:chandler.yx.chen@gmail.com',
+        dstRemote: 'testmucis/a.jpg'
+      })
+    );
   });
 });

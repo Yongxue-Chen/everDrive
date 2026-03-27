@@ -80,6 +80,23 @@ describe('RcloneClient', () => {
     );
   });
 
+  it('returns false when operations/stat reports no item', async () => {
+    const fetchMock = vi.fn(async () => createJsonResponse(200, { item: null }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new RcloneClient({
+      baseUrl: 'http://127.0.0.1:5572',
+      user: 'everdrive',
+      pass: '123456'
+    });
+
+    await expect(client.stat('driveA:', 'missing.txt')).resolves.toBe(false);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:5572/operations/stat',
+      expect.objectContaining({ method: 'POST' })
+    );
+  });
+
   it('retries transient network errors and then succeeds', async () => {
     const fetchMock = vi
       .fn()
@@ -105,6 +122,11 @@ describe('RcloneClient', () => {
 
     expect(result.async).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://127.0.0.1:5572/operations/copyfile',
+      expect.objectContaining({ method: 'POST' })
+    );
   });
 
   it('maps authentication failures to AUTH_FAILED', async () => {
@@ -174,6 +196,10 @@ describe('RcloneClient', () => {
     await expect(client.move({ srcFs: '/data/source', srcRemote: '', dstFs: 'driveA:', dstRemote: 'dest' })).rejects.toMatchObject({
       code: 'PATH_CONFLICT'
     });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:5572/operations/movefile',
+      expect.objectContaining({ method: 'POST' })
+    );
   });
 
   it('supports async operations and returns job id', async () => {

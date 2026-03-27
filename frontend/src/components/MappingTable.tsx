@@ -70,7 +70,7 @@ export function MappingTable({ items, pendingTaskId, onEdit, onRunSync, onToggle
                     编辑
                   </button>
                   <button onClick={() => onRunSync(item)} disabled={pendingTaskId === item.id || item.status === 'deleted'}>
-                    手动同步
+                    {pendingTaskId === item.id ? '同步中...' : '手动同步'}
                   </button>
                   <button onClick={() => onToggleActive(item)} disabled={pendingTaskId === item.id || item.status === 'deleted'}>
                     {item.status === 'active' ? '停用' : '启用'}

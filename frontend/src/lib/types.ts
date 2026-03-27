@@ -122,6 +122,7 @@ export type RemotesListResponse = {
     id: string;
     remoteName: string;
     displayName: string;
+    remoteRootPath: string;
     isActive: boolean;
     cloudTrashEnabled: boolean;
     cloudTrashBasePath: string;
@@ -134,6 +135,7 @@ export type RemotesListResponse = {
       usagePercent: number;
       warningThresholdPercent: number;
       alert: boolean;
+      realUsageAvailable: boolean;
     };
     mappedDirectories: Array<{
       mappingTaskId: string;
@@ -169,6 +171,7 @@ export type UpdateRemoteCapacityResponse = {
 export type UpdateRemoteSettingsPayload = UpdateRemoteCapacityPayload & {
   cloudTrashEnabled?: boolean;
   cloudTrashBasePath?: string;
+  remoteRootPath?: string;
 };
 
 export type UpdateRemoteSettingsResponse = {

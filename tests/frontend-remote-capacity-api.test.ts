@@ -59,6 +59,7 @@ describe('frontend remote api', () => {
           id: '11',
           remoteName: 'mymega',
           displayName: 'mymega',
+          remoteRootPath: '',
           isActive: true,
           healthStatus: 'healthy',
           capacity: {
@@ -100,6 +101,7 @@ describe('frontend remote api', () => {
           id: '11',
           remoteName: 'mymega',
           displayName: 'mymega',
+          remoteRootPath: 'container-a',
           isActive: true,
           cloudTrashEnabled: true,
           cloudTrashBasePath: 'trash-a',
@@ -122,10 +124,12 @@ describe('frontend remote api', () => {
 
     const result = await updateRemoteSettings('11', {
       cloudTrashEnabled: true,
-      cloudTrashBasePath: 'trash-a'
+      cloudTrashBasePath: 'trash-a',
+      remoteRootPath: 'container-a'
     });
 
     expect(result.item.cloudTrashEnabled).toBe(true);
+    expect(result.item.remoteRootPath).toBe('container-a');
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/remotes/11',
       expect.objectContaining({ method: 'PATCH' })

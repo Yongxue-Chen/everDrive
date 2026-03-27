@@ -9,6 +9,7 @@ function repoStub(overrides: Partial<MigrationRepository> = {}): MigrationReposi
     findRemote: vi.fn(async (id: bigint) => ({
       id,
       remoteName: id === 11n ? 'driveA' : 'driveB',
+      remoteRootPath: '',
       isActive: true,
       totalCapacity: 10_000n,
       usedCapacity: 1_000n,
@@ -59,6 +60,7 @@ describe('MigrationService', () => {
       findRemote: vi.fn(async (id: bigint) => ({
         id,
         remoteName: id === 11n ? 'driveA' : 'driveB',
+        remoteRootPath: '',
         isActive: true,
         totalCapacity: 1000n,
         usedCapacity: 990n,

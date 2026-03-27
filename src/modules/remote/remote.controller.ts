@@ -67,7 +67,8 @@ export function createRemoteRouter(service: CloudInventoryService, queue: JobQue
         reservedCapacity: toBigInt(body.reservedCapacity),
         warningThresholdPercent: body.warningThresholdPercent,
         cloudTrashEnabled: body.cloudTrashEnabled,
-        cloudTrashBasePath: body.cloudTrashBasePath
+        cloudTrashBasePath: body.cloudTrashBasePath,
+        remoteRootPath: body.remoteRootPath
       });
 
       res.status(200).json({ item });

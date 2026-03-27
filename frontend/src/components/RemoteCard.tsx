@@ -7,6 +7,7 @@ type RemoteCardProps = {
   usedCapacity: string;
   remainingCapacity: string;
   warningFlag: boolean;
+  usageKnown?: boolean;
 };
 
 export function RemoteCard(props: RemoteCardProps) {
@@ -32,7 +33,7 @@ export function RemoteCard(props: RemoteCardProps) {
         <div className="progress__bar" style={{ width: `${Math.min(100, props.usagePercent)}%` }} />
       </div>
       <p className="remote-card__meta">
-        已用 {formatGigabytes(props.usedCapacity)} / 剩余 {formatGigabytes(props.remainingCapacity)}
+        已用 {props.usageKnown === false ? '不可读取' : formatGigabytes(props.usedCapacity)} / 剩余 {formatGigabytes(props.remainingCapacity)}
       </p>
     </article>
   );

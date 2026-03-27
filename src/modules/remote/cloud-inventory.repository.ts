@@ -62,6 +62,7 @@ export class CloudInventoryRepository {
     const existing = await this.prisma.cloudRemote.findMany({
       select: {
         remoteName: true,
+        remoteRootPath: true,
         isActive: true
       }
     });
@@ -80,6 +81,7 @@ export class CloudInventoryRepository {
             data: {
               remoteName,
               displayName: remoteName,
+              remoteRootPath: '',
               isActive: true,
               healthStatus: HealthStatus.healthy,
               lastSyncAt: now
@@ -173,6 +175,7 @@ export class CloudInventoryRepository {
       warningThresholdPercent?: number;
       cloudTrashEnabled?: boolean;
       cloudTrashBasePath?: string;
+      remoteRootPath?: string;
     }
   ): Promise<void> {
     await this.prisma.cloudRemote.update({
@@ -182,7 +185,8 @@ export class CloudInventoryRepository {
         reservedCapacity: input.reservedCapacity,
         warningThresholdPercent: input.warningThresholdPercent,
         cloudTrashEnabled: input.cloudTrashEnabled,
-        cloudTrashBasePath: input.cloudTrashBasePath
+        cloudTrashBasePath: input.cloudTrashBasePath,
+        remoteRootPath: input.remoteRootPath
       }
     });
   }

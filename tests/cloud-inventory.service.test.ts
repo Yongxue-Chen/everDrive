@@ -12,6 +12,7 @@ function buildRemote(partial: Partial<RemoteRecord>): RemoteRecord {
     id: 1n,
     remoteName: 'driveA',
     displayName: 'driveA',
+    remoteRootPath: '',
     totalCapacity: 1000n,
     usedCapacity: 0n,
     reservedCapacity: 100n,
@@ -47,6 +48,7 @@ function createRcloneStub(overrides: Partial<IRcloneClient> = {}): IRcloneClient
     checkOnline: vi.fn(async () => true),
     listRemotes: vi.fn(async () => ['driveA', 'driveB']),
     getAbout: vi.fn(async () => ({ total: null, used: null, free: null })),
+    stat: vi.fn(async () => true),
     getConfigProviders: vi.fn(async () => ({ providers: [] })),
     copy: vi.fn(async () => ({ async: false as const, result: {} })),
     sync: vi.fn(async () => ({ async: false as const, result: {} })),
@@ -185,7 +187,15 @@ describe('CloudInventoryService', () => {
 
   it('prefers real remote usage from rclone about when available', async () => {
     const repository = createRepositoryStub({
-      listRemotes: vi.fn(async () => [buildRemote({ totalCapacity: 0n, usedCapacity: 0n, reservedCapacity: 100n })]),
+      listRemotes: vi.fn(async () => [
+        buildRemote({
+          remoteName: 'myBlomp',
+          remoteRootPath: 'chandler.yx.chen@gmail.com',
+          totalCapacity: 0n,
+          usedCapacity: 0n,
+          reservedCapacity: 100n
+        })
+      ]),
       getUsedCapacityByRemoteIds: vi.fn(async (): Promise<RemoteUsageAggregate[]> => [])
     });
     const rclone = createRcloneStub({
@@ -198,5 +208,24 @@ describe('CloudInventoryService', () => {
     expect(cards[0]?.capacity.usedCapacityBytes).toBe('250');
     expect(cards[0]?.capacity.totalCapacityBytes).toBe('1000');
     expect(cards[0]?.capacity.remainingCapacityBytes).toBe('650');
+    expect(rclone.getAbout).toHaveBeenCalledWith('myBlomp:chandler.yx.chen@gmail.com');
+  });
+
+  it('marks remote usage as unavailable when rclone about is forbidden', async () => {
+    const repository = createRepositoryStub({
+      listRemotes: vi.fn(async () => [buildRemote({ totalCapacity: 40n * 1024n * 1024n * 1024n, usedCapacity: 0n })]),
+      getUsedCapacityByRemoteIds: vi.fn(async (): Promise<RemoteUsageAggregate[]> => [])
+    });
+    const rclone = createRcloneStub({
+      getAbout: vi.fn(async () => {
+        throw new Error('Operation forbidden');
+      })
+    });
+    const service = new CloudInventoryService(repository, rclone);
+
+    const cards = await service.listRemoteCards();
+
+    expect(cards[0]?.capacity.usedCapacityBytes).toBe('0');
+    expect(cards[0]?.capacity.realUsageAvailable).toBe(false);
   });
 });

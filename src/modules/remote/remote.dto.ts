@@ -9,7 +9,8 @@ export const UpdateRemoteSettingsSchema = z
     reservedCapacity: bigintInputSchema.optional(),
     warningThresholdPercent: z.number().int().min(1).max(100).optional(),
     cloudTrashEnabled: z.boolean().optional(),
-    cloudTrashBasePath: z.string().min(1).max(512).optional()
+    cloudTrashBasePath: z.string().min(1).max(512).optional(),
+    remoteRootPath: z.string().max(512).optional()
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: 'At least one remote field is required'

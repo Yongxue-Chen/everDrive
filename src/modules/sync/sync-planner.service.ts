@@ -2,6 +2,7 @@ import path from 'node:path';
 import { FileSyncStatus, ScanStatus } from '@prisma/client';
 import { AppError } from '../../errors/app-error.js';
 import { logger } from '../../lib/logger.js';
+import { buildRemoteFs } from '../remote/remote-fs.js';
 import { buildEncryptedRemotePath, requireEncryptionKeyOrThrow } from '../security/encryption.js';
 import { SplitPlanner } from '../split/split-planner.service.js';
 import type { RenameHint } from './sync-engine.repository.js';
@@ -10,6 +11,7 @@ import { SyncEngineRepository } from './sync-engine.repository.js';
 export type RemoteTarget = {
   remoteId: string;
   remoteName: string;
+  remoteFs?: string;
   remotePath: string;
   nextRemotePath?: string;
   cloudTrashEnabled?: boolean;
@@ -160,6 +162,7 @@ export class SyncPlanner {
               ? {
                   remoteId: remote.remoteId.toString(),
                   remoteName: remote.remote.remoteName,
+                  remoteFs: buildRemoteFs(remote.remote.remoteName, remote.remote.remoteRootPath),
                   remotePath: location.remotePath,
                   cloudTrashEnabled: remote.remote.cloudTrashEnabled,
                   cloudTrashBasePath: remote.remote.cloudTrashBasePath
@@ -200,6 +203,7 @@ export class SyncPlanner {
             uploadTargets.push({
               remoteId: remote.remoteId.toString(),
               remoteName: remote.remote.remoteName,
+              remoteFs: buildRemoteFs(remote.remote.remoteName, remote.remote.remoteRootPath),
               remotePath: this.toRemotePath({
                 relativePath: file.relativePath,
                 remoteBasePath: remote.remoteBasePath,
@@ -212,6 +216,7 @@ export class SyncPlanner {
             uploadTargets.push({
               remoteId: placement.remoteId,
               remoteName: placement.remoteName,
+              remoteFs: buildRemoteFs(placement.remoteName, placementRemote?.remote.remoteRootPath),
               remotePath: this.toRemotePath({
                 relativePath: file.relativePath,
                 remoteBasePath: placementRemote?.remoteBasePath ?? '',
@@ -219,14 +224,17 @@ export class SyncPlanner {
               })
             });
           }
-        } else {
+      } else {
         for (const remoteLink of activeRemotes) {
           const currentLocation = locationByRemoteId.get(remoteLink.remoteId.toString());
+          const hasHealthyReplica =
+            currentLocation?.syncStatus === FileSyncStatus.synced || currentLocation?.syncStatus === FileSyncStatus.verifying;
 
-            if (!currentLocation) {
+            if (!hasHealthyReplica) {
               uploadTargets.push({
                 remoteId: remoteLink.remoteId.toString(),
                 remoteName: remoteLink.remote.remoteName,
+                remoteFs: buildRemoteFs(remoteLink.remote.remoteName, remoteLink.remote.remoteRootPath),
                 remotePath: this.toRemotePath({
                   relativePath: file.relativePath,
                   remoteBasePath: remoteLink.remoteBasePath,
@@ -240,6 +248,7 @@ export class SyncPlanner {
               uploadTargets.push({
                 remoteId: remoteLink.remoteId.toString(),
                 remoteName: remoteLink.remote.remoteName,
+                remoteFs: buildRemoteFs(remoteLink.remote.remoteName, remoteLink.remote.remoteRootPath),
                 remotePath: this.toRemotePath({
                   relativePath: file.relativePath,
                   remoteBasePath: remoteLink.remoteBasePath,
@@ -263,6 +272,7 @@ export class SyncPlanner {
               return {
                 remoteId: location.remoteId.toString(),
                 remoteName: remote.remote.remoteName,
+                remoteFs: buildRemoteFs(remote.remote.remoteName, remote.remote.remoteRootPath),
                 remotePath: this.toRemotePath({
                   localPath: renameHint.fromPath,
                   localBasePath: context.localPath,

@@ -104,6 +104,7 @@ export const mockRemotes: RemotesListResponse = {
       id: '11',
       remoteName: 'driveA',
       displayName: 'Drive A',
+      remoteRootPath: '',
       isActive: true,
       cloudTrashEnabled: false,
       cloudTrashBasePath: '.everdrive-trash',
@@ -115,7 +116,8 @@ export const mockRemotes: RemotesListResponse = {
         remainingCapacityBytes: '42000000000',
         usagePercent: 58,
         warningThresholdPercent: 85,
-        alert: false
+        alert: false,
+        realUsageAvailable: true
       },
       mappedDirectories: [
         {

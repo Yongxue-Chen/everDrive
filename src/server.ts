@@ -107,6 +107,7 @@ async function bootstrap(): Promise<void> {
         .map((remote) => ({
           id: remote.id,
           remoteName: remote.remoteName,
+          remoteRootPath: remote.remoteRootPath,
           cloudTrashEnabled: remote.cloudTrashEnabled,
           cloudTrashBasePath: remote.cloudTrashBasePath
         }));

@@ -22,6 +22,7 @@ function context(syncMode: 'archive' | 'mirror', splitEnabled = false): SyncCont
         remote: {
           id: 11n,
           remoteName: 'driveA',
+          remoteRootPath: '',
           isActive: true,
           cloudTrashEnabled: false,
           cloudTrashBasePath: '.everdrive-trash',
@@ -39,6 +40,7 @@ function context(syncMode: 'archive' | 'mirror', splitEnabled = false): SyncCont
         remote: {
           id: 22n,
           remoteName: 'driveB',
+          remoteRootPath: '',
           isActive: true,
           cloudTrashEnabled: false,
           cloudTrashBasePath: '.everdrive-trash',
@@ -139,6 +141,36 @@ describe('SyncPlanner', () => {
     const upload = plan.uploadActions.find((item) => item.fileId === '101');
     expect(upload?.targets).toHaveLength(1);
     expect(upload?.targets[0]?.remoteName).toBe('driveA');
+  });
+
+  it('retries upload when existing remote location is failed', async () => {
+    const ctx = context('archive');
+    ctx.files = [
+      {
+        id: 301n,
+        localPath: '/data/photos/retry.jpg',
+        relativePath: 'retry.jpg',
+        fileSize: 40n,
+        scanStatus: ScanStatus.scanned,
+        updatedAt: new Date('2026-03-26T10:00:00.000Z'),
+        fileLocations: [
+          {
+            id: 1n,
+            remoteId: 11n,
+            remotePath: 'retry.jpg',
+            remoteFileName: 'retry.jpg',
+            syncStatus: FileSyncStatus.failed
+          }
+        ]
+      }
+    ] as any;
+
+    const planner = new SyncPlanner(repoStub(ctx));
+    const plan = await planner.buildPlan(1n);
+
+    expect(plan.uploadActions).toHaveLength(1);
+    expect(plan.uploadActions[0]?.targets.map((item) => item.remoteName)).toEqual(['driveA', 'driveB']);
+    expect(plan.skipActions).toHaveLength(0);
   });
 
   it('plans rename action when rename hint matches changed file', async () => {

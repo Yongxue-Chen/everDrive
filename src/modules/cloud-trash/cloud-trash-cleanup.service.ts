@@ -1,11 +1,13 @@
 import path from 'node:path';
 import { logger } from '../../lib/logger.js';
+import { buildRemoteFs } from '../remote/remote-fs.js';
 import type { SettingsService } from '../settings/settings.service.js';
 import type { CloudTrashSettings } from '../settings/settings.dto.js';
 
 export type CloudTrashRemoteRef = {
   id: bigint;
   remoteName: string;
+  remoteRootPath?: string;
   cloudTrashEnabled: boolean;
   cloudTrashBasePath: string;
 };
@@ -89,7 +91,7 @@ export class CloudTrashCleanupService {
 
         try {
           await this.remoteClient.purge({
-            fs: `${remote.remoteName}:`,
+            fs: buildRemoteFs(remote.remoteName, remote.remoteRootPath),
             remote: path.posix.join(remote.cloudTrashBasePath, expiredTrashPath)
           });
           summary.deletedEntries += 1;
@@ -123,7 +125,7 @@ export class CloudTrashCleanupService {
     let items: CloudTrashCleanupListItem[];
     try {
       items = await this.remoteClient.list({
-        fs: `${remote.remoteName}:`,
+        fs: buildRemoteFs(remote.remoteName, remote.remoteRootPath),
         remote: remote.cloudTrashBasePath
       });
     } catch (error) {

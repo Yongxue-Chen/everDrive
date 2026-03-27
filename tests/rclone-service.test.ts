@@ -9,6 +9,7 @@ function createClientStub(overrides: Partial<IRcloneClient> = {}): IRcloneClient
     checkOnline: vi.fn(async () => true),
     listRemotes: vi.fn(async () => ['driveA']),
     getAbout: vi.fn(async () => ({ total: null, used: null, free: null })),
+    stat: vi.fn(async () => true),
     getConfigProviders: vi.fn(async () => ({ providers: [] })),
     copy: vi.fn(async () => okResult),
     sync: vi.fn(async () => okResult),

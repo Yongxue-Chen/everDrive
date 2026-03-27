@@ -2,12 +2,14 @@ import path from 'node:path';
 import { FileSyncStatus, ScanStatus } from '@prisma/client';
 import type { IRcloneClient } from '../../infrastructure/rclone/rclone-rcd-client.js';
 import { logger } from '../../lib/logger.js';
+import { buildRemoteFs } from '../remote/remote-fs.js';
 import { encryptFileToTemp, requireEncryptionKeyOrThrow } from '../security/encryption.js';
 import { SyncEngineRepository } from '../sync/sync-engine.repository.js';
 
 export type RedundancyTarget = {
   remoteId: string;
   remoteName: string;
+  remoteFs?: string;
   remotePath: string;
 };
 
@@ -64,7 +66,7 @@ export class RedundancyBackupService {
             await this.rcloneClient.copy({
               srcFs: path.dirname(uploadSource.localPath),
               srcRemote: path.basename(uploadSource.localPath),
-              dstFs: `${target.remoteName}:`,
+              dstFs: target.remoteFs ?? buildRemoteFs(target.remoteName),
               dstRemote: target.remotePath,
               async: false
             });
