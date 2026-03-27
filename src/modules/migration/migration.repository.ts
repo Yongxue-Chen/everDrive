@@ -1,4 +1,4 @@
-import { FileSyncStatus, JobStatus, JobType, type PrismaClient } from '@prisma/client';
+import { FileSyncStatus, JobStatus, JobType, Prisma, type PrismaClient } from '@prisma/client';
 
 export type MigrationTaskContext = {
   id: bigint;
@@ -126,7 +126,7 @@ export class MigrationRepository {
     scopeRelativePath?: string;
     removeSourceReplica: boolean;
   }): Promise<{ affectedFileLocations: number }> {
-    const whereScope = input.scopeRelativePath
+    const whereScope: Prisma.FileLocationWhereInput = input.scopeRelativePath
       ? {
           OR: [
             { file: { relativePath: input.scopeRelativePath } },
@@ -135,34 +135,27 @@ export class MigrationRepository {
         }
       : {};
 
-    const sourceLocations = await this.prisma.fileLocation.findMany({
-      where: {
-        remoteId: input.sourceRemoteId,
-        file: {
-          mappingTaskId: input.mappingTaskId
-        },
-        ...whereScope
-      },
-      include: {
-        file: {
-          select: {
-            id: true
-          }
+    const affectedFileLocations = await this.prisma.$transaction(async (tx) => {
+      const sourceLocations = await tx.fileLocation.findMany({
+        where: {
+          remoteId: input.sourceRemoteId,
+          file: {
+            mappingTaskId: input.mappingTaskId
+          },
+          ...whereScope
         }
-      }
-    });
+      });
 
-    await this.prisma.$transaction(async (tx) => {
       for (const location of sourceLocations) {
         await tx.fileLocation.upsert({
           where: {
             fileId_remoteId: {
-              fileId: location.file.id,
+              fileId: location.fileId,
               remoteId: input.targetRemoteId
             }
           },
           create: {
-            fileId: location.file.id,
+            fileId: location.fileId,
             remoteId: input.targetRemoteId,
             remotePath: location.remotePath,
             remoteFileName: location.remoteFileName,
@@ -206,14 +199,16 @@ export class MigrationRepository {
             mappingTaskId: input.mappingTaskId,
             remoteId: input.targetRemoteId,
             role: sourceBinding?.role ?? 'primary',
-            priority: sourceBinding?.priority ?? 100
+            priority: sourceBinding?.priority ?? 100,
+            remoteBasePath: sourceBinding?.remoteBasePath ?? ''
           }
         });
       }
+      return sourceLocations.length;
     });
 
     return {
-      affectedFileLocations: sourceLocations.length
+      affectedFileLocations
     };
   }
 
