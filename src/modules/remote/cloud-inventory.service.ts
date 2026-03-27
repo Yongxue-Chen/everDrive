@@ -12,6 +12,8 @@ export type RemoteRecord = {
   id: bigint;
   remoteName: string;
   displayName: string;
+  cloudTrashEnabled: boolean;
+  cloudTrashBasePath: string;
   totalCapacity: bigint;
   usedCapacity: bigint;
   reservedCapacity: bigint;
@@ -50,6 +52,16 @@ export interface CloudInventoryRepository {
     remoteId: bigint,
     input: { totalCapacity?: bigint; reservedCapacity?: bigint; warningThresholdPercent?: number }
   ): Promise<void>;
+  updateRemoteSettings(
+    remoteId: bigint,
+    input: {
+      totalCapacity?: bigint;
+      reservedCapacity?: bigint;
+      warningThresholdPercent?: number;
+      cloudTrashEnabled?: boolean;
+      cloudTrashBasePath?: string;
+    }
+  ): Promise<void>;
   updateRemoteActiveState(remoteId: bigint, isActive: boolean): Promise<void>;
 }
 
@@ -58,6 +70,8 @@ export type RemoteCard = {
   remoteName: string;
   displayName: string;
   isActive: boolean;
+  cloudTrashEnabled: boolean;
+  cloudTrashBasePath: string;
   healthStatus: HealthStatus;
   capacity: {
     totalCapacityBytes: string;
@@ -84,6 +98,11 @@ export type CapacityUpdateInput = {
   totalCapacity?: bigint;
   reservedCapacity?: bigint;
   warningThresholdPercent?: number;
+};
+
+export type RemoteSettingsUpdateInput = CapacityUpdateInput & {
+  cloudTrashEnabled?: boolean;
+  cloudTrashBasePath?: string;
 };
 
 export class CloudInventoryService {
@@ -132,6 +151,28 @@ export class CloudInventoryService {
 
     await this.ensureRemoteExists(remoteId);
     await this.repository.updateRemoteCapacitySettings(remoteId, input);
+    return this.getRemoteCard(remoteId);
+  }
+
+  async updateRemoteSettings(remoteId: bigint, input: RemoteSettingsUpdateInput): Promise<RemoteCard> {
+    if (input.warningThresholdPercent !== undefined && (input.warningThresholdPercent < 1 || input.warningThresholdPercent > 100)) {
+      throw new AppError({
+        code: 'BAD_REQUEST',
+        message: 'warningThresholdPercent must be between 1 and 100',
+        statusCode: 400
+      });
+    }
+
+    if (input.cloudTrashBasePath !== undefined && !input.cloudTrashBasePath.trim()) {
+      throw new AppError({
+        code: 'BAD_REQUEST',
+        message: 'cloudTrashBasePath cannot be empty',
+        statusCode: 400
+      });
+    }
+
+    await this.ensureRemoteExists(remoteId);
+    await this.repository.updateRemoteSettings(remoteId, input);
     return this.getRemoteCard(remoteId);
   }
 
@@ -206,6 +247,8 @@ export class CloudInventoryService {
       remoteName: remote.remoteName,
       displayName: remote.displayName,
       isActive: remote.isActive,
+      cloudTrashEnabled: remote.cloudTrashEnabled,
+      cloudTrashBasePath: remote.cloudTrashBasePath,
       healthStatus: runtimeSnapshot?.healthStatus ?? stats.healthStatus,
       capacity: {
         totalCapacityBytes: remote.totalCapacity.toString(),

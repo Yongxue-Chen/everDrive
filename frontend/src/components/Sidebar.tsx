@@ -14,7 +14,7 @@ export function Sidebar() {
         <div className="sidebar__logo">ED</div>
         <div>
           <div className="sidebar__title">everDrive</div>
-          <div className="sidebar__subtitle">Operations Console</div>
+          <div className="sidebar__subtitle">运维控制台</div>
         </div>
       </div>
       <nav className="sidebar__nav">

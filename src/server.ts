@@ -42,6 +42,8 @@ import { SyncEngineRepository } from './modules/sync/sync-engine.repository.js';
 import { SyncOrchestrationService } from './modules/sync/sync-orchestration.service.js';
 import { AutoSyncSchedulerService } from './modules/scheduler/auto-sync-scheduler.service.js';
 import { CloudTrashCleanupService } from './modules/cloud-trash/cloud-trash-cleanup.service.js';
+import { createLocalPathRouter } from './modules/local-path/local-path.controller.js';
+import { LocalPathService } from './modules/local-path/local-path.service.js';
 
 async function bootstrap(): Promise<void> {
   const env = getEnv();
@@ -93,6 +95,8 @@ async function bootstrap(): Promise<void> {
   const metricsRouter = createMetricsRouter(metricsService);
   const settingsService = await SettingsService.create();
   const settingsRouter = createSettingsRouter(settingsService, auditService);
+  const localPathService = new LocalPathService(env.LOCAL_PATH_ALLOWED_ROOTS.split(','));
+  const localPathRouter = createLocalPathRouter(localPathService);
   const cloudTrashCleanupService = new CloudTrashCleanupService({
     settingsService,
     listActiveRemotes: async () => {
@@ -191,7 +195,8 @@ async function bootstrap(): Promise<void> {
     dashboardRouter,
     settingsRouter,
     auditRouter,
-    metricsRouter
+    metricsRouter,
+    localPathRouter
   });
 
   const server = app.listen(env.PORT, () => {

@@ -12,6 +12,8 @@ export type RemoteTarget = {
   remoteName: string;
   remotePath: string;
   nextRemotePath?: string;
+  cloudTrashEnabled?: boolean;
+  cloudTrashBasePath?: string;
 };
 
 export type UploadAction = {
@@ -158,7 +160,9 @@ export class SyncPlanner {
               ? {
                   remoteId: remote.remoteId.toString(),
                   remoteName: remote.remote.remoteName,
-                  remotePath: location.remotePath
+                  remotePath: location.remotePath,
+                  cloudTrashEnabled: remote.remote.cloudTrashEnabled,
+                  cloudTrashBasePath: remote.remote.cloudTrashBasePath
                 }
               : null;
           })

@@ -18,6 +18,8 @@ function buildRemote(partial: Partial<RemoteRecord>): RemoteRecord {
     warningThresholdPercent: 85,
     healthStatus: 'healthy',
     isActive: true,
+    cloudTrashEnabled: false,
+    cloudTrashBasePath: '.everdrive-trash',
     lastSyncAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -34,6 +36,7 @@ function createRepositoryStub(overrides: Partial<CloudInventoryRepository> = {})
     getUsedCapacityByRemoteIds: vi.fn(async () => [{ remoteId: 1n, usedCapacity: 700n }]),
     updateRemoteUsageSnapshot: vi.fn(async () => undefined),
     updateRemoteCapacitySettings: vi.fn(async () => undefined),
+    updateRemoteSettings: vi.fn(async () => undefined),
     updateRemoteActiveState: vi.fn(async () => undefined),
     ...overrides
   };
@@ -149,6 +152,33 @@ describe('CloudInventoryService', () => {
       mappingTaskId: '101',
       localPath: '/data/photos',
       role: 'primary'
+    });
+  });
+
+  it('includes remote cloud trash fields in remote cards', async () => {
+    const repository = createRepositoryStub({
+      listRemotes: vi.fn(async () => [buildRemote({ cloudTrashEnabled: true, cloudTrashBasePath: 'trash-a' })])
+    });
+    const service = new CloudInventoryService(repository, createRcloneStub());
+
+    const cards = await service.listRemoteCards();
+
+    expect(cards[0]?.cloudTrashEnabled).toBe(true);
+    expect(cards[0]?.cloudTrashBasePath).toBe('trash-a');
+  });
+
+  it('updates remote cloud trash settings', async () => {
+    const repository = createRepositoryStub();
+    const service = new CloudInventoryService(repository, createRcloneStub());
+
+    await service.updateRemoteSettings(1n, {
+      cloudTrashEnabled: true,
+      cloudTrashBasePath: 'trash-a'
+    });
+
+    expect(repository.updateRemoteSettings).toHaveBeenCalledWith(1n, {
+      cloudTrashEnabled: true,
+      cloudTrashBasePath: 'trash-a'
     });
   });
 });

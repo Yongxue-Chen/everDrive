@@ -3,15 +3,19 @@ import { AppError } from '../../errors/app-error.js';
 
 const bigintInputSchema = z.union([z.string().regex(/^\d+$/), z.number().int().nonnegative(), z.bigint()]);
 
-export const UpdateRemoteCapacitySchema = z
+export const UpdateRemoteSettingsSchema = z
   .object({
     totalCapacity: bigintInputSchema.optional(),
     reservedCapacity: bigintInputSchema.optional(),
-    warningThresholdPercent: z.number().int().min(1).max(100).optional()
+    warningThresholdPercent: z.number().int().min(1).max(100).optional(),
+    cloudTrashEnabled: z.boolean().optional(),
+    cloudTrashBasePath: z.string().min(1).max(512).optional()
   })
   .refine((value) => Object.keys(value).length > 0, {
-    message: 'At least one capacity field is required'
+    message: 'At least one remote field is required'
   });
+
+export const UpdateRemoteCapacitySchema = UpdateRemoteSettingsSchema;
 
 export const UpdateRemoteActiveSchema = z.object({
   isActive: z.boolean()

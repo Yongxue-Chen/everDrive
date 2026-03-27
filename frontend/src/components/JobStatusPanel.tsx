@@ -21,36 +21,49 @@ export function JobStatusPanel() {
     return 'neutral';
   }, [query.data?.status]);
 
+  const statusLabel =
+    query.data?.status === 'success'
+      ? '成功'
+      : query.data?.status === 'failed'
+        ? '失败'
+        : query.data?.status === 'cancelled'
+          ? '已取消'
+          : query.data?.status === 'running'
+            ? '运行中'
+            : query.data?.status === 'queued'
+              ? '排队中'
+              : '-';
+
   return (
     <section className={`panel panel--${tone}`}>
       <div className="panel__head">
-        <h3>JobStatusPanel</h3>
+        <h3>任务状态追踪</h3>
         <div className="panel__actions">
-          <input value={jobId} onChange={(e) => setJobId(e.target.value)} placeholder="Job ID" />
-          <button onClick={() => setSubmittedId(jobId)}>Track</button>
+          <input value={jobId} onChange={(e) => setJobId(e.target.value)} placeholder="任务 ID" />
+          <button onClick={() => setSubmittedId(jobId)}>查询</button>
         </div>
       </div>
-      {query.isLoading ? <p>Loading...</p> : null}
-      {query.error ? <p className="error">Failed to fetch job.</p> : null}
+      {query.isLoading ? <p>正在加载任务状态...</p> : null}
+      {query.error ? <p className="error">获取任务状态失败。</p> : null}
       {query.data ? (
         <div className="job-grid">
           <p>
-            <strong>ID:</strong> {query.data.id}
+            <strong>ID：</strong> {query.data.id}
           </p>
           <p>
-            <strong>Kind:</strong> {query.data.kind}
+            <strong>类型：</strong> {query.data.kind}
           </p>
           <p>
-            <strong>Status:</strong> {query.data.status}
+            <strong>状态：</strong> {statusLabel}
           </p>
           <p>
-            <strong>Started:</strong> {formatDate(query.data.startedAt)}
+            <strong>开始时间：</strong> {formatDate(query.data.startedAt)}
           </p>
           <p>
-            <strong>Finished:</strong> {formatDate(query.data.finishedAt)}
+            <strong>结束时间：</strong> {formatDate(query.data.finishedAt)}
           </p>
           <p>
-            <strong>Error:</strong> {query.data.errorMessage ?? '-'}
+            <strong>错误信息：</strong> {query.data.errorMessage ?? '-'}
           </p>
         </div>
       ) : null}

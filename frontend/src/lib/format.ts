@@ -18,7 +18,7 @@ export function formatBytes(value: string | number): string {
 
 export function formatDate(value: string | null): string {
   if (!value) {
-    return 'Never';
+    return '从未';
   }
-  return new Date(value).toLocaleString();
+  return new Date(value).toLocaleString('zh-CN');
 }

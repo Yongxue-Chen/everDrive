@@ -62,14 +62,15 @@ export type MappingTaskListResponse = {
     name: string;
     local_path: string;
     remotes: Array<{
-      remote_id: string;
-      remote_name: string;
-      display_name: string;
+      remoteId: string;
+      remoteName: string;
+      displayName: string;
       role: string;
       priority: number;
+      remoteBasePath: string;
       is_active: boolean;
-      health_status: string;
-      available_capacity_bytes: string;
+      healthStatus: string;
+      availableCapacityBytes: string;
     }>;
     sync_mode: 'archive' | 'mirror';
     encryption_enabled: boolean;
@@ -82,12 +83,48 @@ export type MappingTaskListResponse = {
   }>;
 };
 
+export type MappingTaskItem = MappingTaskListResponse['items'][number];
+export type MappingTaskRemoteItem = MappingTaskItem['remotes'][number];
+
+export type MappingTaskRemoteBindingInput = {
+  remoteId: string;
+  priority?: number;
+  remoteBasePath?: string;
+};
+
+export type CreateMappingTaskPayload = {
+  name: string;
+  localPath: string;
+  syncMode: 'archive' | 'mirror';
+  encryptionEnabled: boolean;
+  redundancyEnabled: boolean;
+  splitEnabled: boolean;
+  expectedDataSizeBytes?: string;
+  remoteBindings: MappingTaskRemoteBindingInput[];
+};
+
+export type UpdateMappingTaskPayload = Partial<Omit<CreateMappingTaskPayload, 'remoteBindings'>> & {
+  remoteBindings?: MappingTaskRemoteBindingInput[];
+};
+
+export type MappingTaskMutationResponse = {
+  item: MappingTaskItem;
+};
+
+export type MappingTaskDeleteResponse = {
+  item: MappingTaskItem | null;
+  deleted: boolean;
+  hardDelete: boolean;
+};
+
 export type RemotesListResponse = {
   items: Array<{
     id: string;
     remoteName: string;
     displayName: string;
     isActive: boolean;
+    cloudTrashEnabled: boolean;
+    cloudTrashBasePath: string;
     healthStatus: string;
     capacity: {
       totalCapacityBytes: string;
@@ -108,6 +145,44 @@ export type RemotesListResponse = {
     }>;
     lastSyncAt: string | null;
     updatedAt: string;
+  }>;
+};
+
+export type SyncCloudRemotesResponse = {
+  summary: {
+    added: string[];
+    reactivated: string[];
+    disabled: string[];
+  };
+};
+
+export type UpdateRemoteCapacityPayload = {
+  totalCapacity?: string;
+  reservedCapacity?: string;
+  warningThresholdPercent?: number;
+};
+
+export type UpdateRemoteCapacityResponse = {
+  item: RemotesListResponse['items'][number];
+};
+
+export type UpdateRemoteSettingsPayload = UpdateRemoteCapacityPayload & {
+  cloudTrashEnabled?: boolean;
+  cloudTrashBasePath?: string;
+};
+
+export type UpdateRemoteSettingsResponse = {
+  item: RemotesListResponse['items'][number];
+};
+
+export type LocalPathBrowseResponse = {
+  currentPath: string;
+  parentPath: string | null;
+  roots: string[];
+  items: Array<{
+    name: string;
+    path: string;
+    isDirectory: true;
   }>;
 };
 
@@ -148,6 +223,13 @@ export type SettingsItem = {
     defaultCapacityWarningThresholdPercent: number;
     hashAlgorithm: 'md5' | 'sha1' | 'sha256' | 'blake3';
     logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+    cloudTrash: {
+      enabled: boolean;
+      retentionDays: number;
+      cleanupIntervalHours: number;
+      basePath: string;
+      maxDeleteBatchPerRun: number;
+    };
   };
   hotUpdate: {
     hotUpdatedKeys: string[];

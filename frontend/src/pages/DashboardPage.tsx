@@ -17,13 +17,13 @@ export function DashboardPage() {
     <div className="page">
       <header className="page__header">
         <h1>详情看板</h1>
-        <button onClick={() => Promise.all([workspaceQuery.refetch(), cloudQuery.refetch()])}>Refresh</button>
+        <button onClick={() => Promise.all([workspaceQuery.refetch(), cloudQuery.refetch()])}>刷新数据</button>
       </header>
 
       <section className="status-grid">
-        <StatusCard title="Workspaces" value={String(workspaceCount)} tone="neutral" meta="Mapping task scoped" />
-        <StatusCard title="Data Footprint" value={formatBytes(totalSize)} tone="good" meta="Local indexed size" />
-        <StatusCard title="Warning Remotes" value={String(warningRemotes)} tone={warningRemotes ? 'warn' : 'good'} meta="Capacity or health warnings" />
+        <StatusCard title="工作空间数" value={String(workspaceCount)} tone="neutral" meta="按映射任务聚合" />
+        <StatusCard title="数据总量" value={formatBytes(totalSize)} tone="good" meta="本地已索引体积" />
+        <StatusCard title="告警云盘" value={String(warningRemotes)} tone={warningRemotes ? 'warn' : 'good'} meta="容量或健康状态异常" />
       </section>
 
       <section className="cards-grid">

@@ -21,4 +21,4 @@ while true; do
 done
 
 echo "[backend-entrypoint] starting backend server"
-exec node dist/server.js
+exec node dist/src/server.js

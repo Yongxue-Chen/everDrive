@@ -313,6 +313,12 @@ select {
   margin-bottom: 4px;
 }
 
+.table__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .panel__head {
   display: flex;
   justify-content: space-between;
@@ -363,6 +369,126 @@ select {
   background: #dbf1ec;
 }
 
+.mapping-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
+  gap: 16px;
+}
+
+.mapping-layout__main {
+  min-width: 0;
+}
+
+.mapping-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mapping-form__grid {
+  margin-bottom: 0;
+}
+
+.mapping-form__toggles {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-row input {
+  width: auto;
+}
+
+.mapping-form__bindings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.binding-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  align-items: end;
+}
+
+.binding-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.panel--warning {
+  border-left: 5px solid var(--warn);
+}
+
+.path-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 20, 0.42);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.modal {
+  width: min(760px, 100%);
+  max-height: 80vh;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.path-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.path-list__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.remote-actions {
+  margin-top: 10px;
+}
+
+.settings-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -396,5 +522,19 @@ select {
 
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .mapping-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .binding-row {
+    grid-template-columns: 1fr;
+  }
+
+  .path-input,
+  .path-list__item {
+    grid-template-columns: 1fr;
+    display: grid;
   }
 }

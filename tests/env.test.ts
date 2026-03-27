@@ -26,6 +26,20 @@ describe('parseEnv', () => {
     expect(parsed.ENCRYPTION_MASTER_KEY).toBe('');
   });
 
+  it('defaults local path browsing root to the system root directory', () => {
+    const parsed = parseEnv({
+      NODE_ENV: 'development',
+      PORT: '3200',
+      LOG_LEVEL: 'debug',
+      DATABASE_URL: 'mysql://root:pass@localhost:3306/everdrive',
+      RCLONE_RCD_URL: 'http://127.0.0.1:5572',
+      RCLONE_RCD_USER: 'admin',
+      RCLONE_RCD_PASS: 'secret'
+    });
+
+    expect(parsed.LOCAL_PATH_ALLOWED_ROOTS).toBe('/');
+  });
+
   it('throws when required config is missing', () => {
     expect(() =>
       parseEnv({

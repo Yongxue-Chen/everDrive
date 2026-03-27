@@ -2,7 +2,6 @@ import path from 'node:path';
 import { FileSyncStatus, ScanStatus } from '@prisma/client';
 import type { IRcloneClient } from '../../infrastructure/rclone/rclone-rcd-client.js';
 import { logger } from '../../lib/logger.js';
-import type { CloudTrashSettings } from '../settings/settings.dto.js';
 import { RedundancyBackupService } from '../redundancy/redundancy-backup.service.js';
 import { SyncEngineRepository } from './sync-engine.repository.js';
 import type { DeleteAction, RenameAction, SyncPlan, UploadAction } from './sync-planner.service.js';
@@ -26,19 +25,14 @@ export type SyncExecutionSummary = {
 export class SyncExecutor {
   private readonly log = logger.withContext({ module: 'sync-executor' });
   private readonly redundancyBackupService: RedundancyBackupService;
-  private readonly getCloudTrashSettings: () => CloudTrashSettings;
   private readonly now: () => Date;
 
   constructor(
     private readonly repository: SyncEngineRepository,
     private readonly rcloneClient: IRcloneClient,
-    options?: {
-      getCloudTrashSettings?: () => CloudTrashSettings;
-      now?: () => Date;
-    }
+    options?: { now?: () => Date }
   ) {
     this.redundancyBackupService = new RedundancyBackupService(repository, rcloneClient);
-    this.getCloudTrashSettings = options?.getCloudTrashSettings ?? (() => this.defaultCloudTrashSettings());
     this.now = options?.now ?? (() => new Date());
   }
 
@@ -168,9 +162,19 @@ export class SyncExecutor {
   ): Promise<void> {
     for (const target of action.targets) {
       try {
-        const cloudTrashSettings = this.getCloudTrashSettings();
-        if (cloudTrashSettings.enabled) {
-          const trashRemotePath = await this.moveToCloudTrash(target.remoteName, target.remotePath, plan.mappingTaskId, cloudTrashSettings.basePath);
+        const cloudTrashBasePath = target.cloudTrashBasePath?.trim();
+        const shouldMoveToTrash =
+          plan.syncMode === 'mirror' &&
+          target.cloudTrashEnabled === true &&
+          Boolean(cloudTrashBasePath);
+
+        if (shouldMoveToTrash) {
+          const trashRemotePath = await this.moveToCloudTrash(
+            target.remoteName,
+            target.remotePath,
+            plan.mappingTaskId,
+            cloudTrashBasePath!
+          );
 
           await this.repository.writeOperationLog({
             operationType: 'delete',
@@ -291,15 +295,5 @@ export class SyncExecutor {
 
   private isPathConflictError(error: unknown): boolean {
     return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'PATH_CONFLICT';
-  }
-
-  private defaultCloudTrashSettings(): CloudTrashSettings {
-    return {
-      enabled: false,
-      retentionDays: 30,
-      cleanupIntervalHours: 24,
-      basePath: '.everdrive-trash',
-      maxDeleteBatchPerRun: 1000
-    };
   }
 }

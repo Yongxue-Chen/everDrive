@@ -17,6 +17,7 @@ const EnvSchema = z.object({
   RCLONE_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
   RCLONE_RETRY_ATTEMPTS: z.coerce.number().int().min(0).default(2),
   RCLONE_RETRY_DELAY_MS: z.coerce.number().int().min(0).default(250),
+  LOCAL_PATH_ALLOWED_ROOTS: z.string().default('/'),
 
   SCAN_BATCH_SIZE: z.coerce.number().int().positive().default(1000),
   SCAN_INTERVAL_SECONDS: z.coerce.number().int().positive().default(30),

@@ -141,6 +141,8 @@ model CloudRemote {
   id               BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
   remoteName       String       @map("remote_name") @db.VarChar(128)
   displayName      String       @map("display_name") @db.VarChar(128)
+  cloudTrashEnabled Boolean     @default(false) @map("cloud_trash_enabled")
+  cloudTrashBasePath String     @default(".everdrive-trash") @map("cloud_trash_base_path") @db.VarChar(512)
   totalCapacity    BigInt       @default(0) @map("total_capacity") @db.UnsignedBigInt
   usedCapacity     BigInt       @default(0) @map("used_capacity") @db.UnsignedBigInt
   reservedCapacity BigInt       @default(0) @map("reserved_capacity") @db.UnsignedBigInt

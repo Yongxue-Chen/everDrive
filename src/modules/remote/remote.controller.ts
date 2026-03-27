@@ -4,7 +4,7 @@ import { parseOrBadRequest } from '../../lib/request-parser.js';
 import { AuditService } from '../audit/audit.service.js';
 import { JobQueueService } from '../job-queue/job-queue.service.js';
 import { CloudInventoryService } from './cloud-inventory.service.js';
-import { parseRemoteId, toBigInt, UpdateRemoteActiveSchema, UpdateRemoteCapacitySchema } from './remote.dto.js';
+import { parseRemoteId, toBigInt, UpdateRemoteActiveSchema, UpdateRemoteCapacitySchema, UpdateRemoteSettingsSchema } from './remote.dto.js';
 
 export function createRemoteRouter(service: CloudInventoryService, queue: JobQueueService, auditService?: AuditService): Router {
   const router = Router();
@@ -51,6 +51,25 @@ export function createRemoteRouter(service: CloudInventoryService, queue: JobQue
     asyncHandler(async (req, res) => {
       const remoteId = parseRemoteId(req.params.remoteId);
       const item = await service.getRemoteCard(remoteId);
+      res.status(200).json({ item });
+    })
+  );
+
+  router.patch(
+    '/api/remotes/:remoteId',
+    asyncHandler(async (req, res) => {
+      const remoteId = parseRemoteId(req.params.remoteId);
+
+      const body = parseOrBadRequest(UpdateRemoteSettingsSchema, req.body);
+
+      const item = await service.updateRemoteSettings(remoteId, {
+        totalCapacity: toBigInt(body.totalCapacity),
+        reservedCapacity: toBigInt(body.reservedCapacity),
+        warningThresholdPercent: body.warningThresholdPercent,
+        cloudTrashEnabled: body.cloudTrashEnabled,
+        cloudTrashBasePath: body.cloudTrashBasePath
+      });
+
       res.status(200).json({ item });
     })
   );

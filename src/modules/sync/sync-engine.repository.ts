@@ -18,6 +18,8 @@ export type SyncContext = {
       id: bigint;
       remoteName: string;
       isActive: boolean;
+      cloudTrashEnabled: boolean;
+      cloudTrashBasePath: string;
       totalCapacity: bigint;
       usedCapacity: bigint;
       reservedCapacity: bigint;
@@ -78,6 +80,8 @@ export class SyncEngineRepository {
                 id: true,
                 remoteName: true,
                 isActive: true,
+                cloudTrashEnabled: true,
+                cloudTrashBasePath: true,
                 totalCapacity: true,
                 usedCapacity: true,
                 reservedCapacity: true,

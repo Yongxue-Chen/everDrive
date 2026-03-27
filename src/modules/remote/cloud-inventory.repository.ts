@@ -162,12 +162,27 @@ export class CloudInventoryRepository {
       warningThresholdPercent?: number;
     }
   ): Promise<void> {
+    await this.updateRemoteSettings(remoteId, input);
+  }
+
+  async updateRemoteSettings(
+    remoteId: bigint,
+    input: {
+      totalCapacity?: bigint;
+      reservedCapacity?: bigint;
+      warningThresholdPercent?: number;
+      cloudTrashEnabled?: boolean;
+      cloudTrashBasePath?: string;
+    }
+  ): Promise<void> {
     await this.prisma.cloudRemote.update({
       where: { id: remoteId },
       data: {
         totalCapacity: input.totalCapacity,
         reservedCapacity: input.reservedCapacity,
-        warningThresholdPercent: input.warningThresholdPercent
+        warningThresholdPercent: input.warningThresholdPercent,
+        cloudTrashEnabled: input.cloudTrashEnabled,
+        cloudTrashBasePath: input.cloudTrashBasePath
       }
     });
   }

@@ -1,11 +1,4 @@
-import type {
-  CloudViewResponse,
-  MappingTaskListResponse,
-  QueueJob,
-  RemotesListResponse,
-  SettingsResponse,
-  WorkspaceViewResponse
-} from './types';
+import type { CloudViewResponse, MappingTaskItem, MappingTaskListResponse, QueueJob, RemotesListResponse, SettingsResponse, WorkspaceViewResponse } from './types.js';
 
 export const mockWorkspaceView: WorkspaceViewResponse = {
   items: [
@@ -78,18 +71,19 @@ export const mockMappingTasks: MappingTaskListResponse = {
   items: [
     {
       id: '1',
-      name: 'Workspace / Photos',
+      name: '工作空间 / 照片',
       local_path: '/data/photos',
       remotes: [
         {
-          remote_id: '11',
-          remote_name: 'driveA',
-          display_name: 'Drive A',
+          remoteId: '11',
+          remoteName: 'driveA',
+          displayName: 'Drive A',
           role: 'primary',
           priority: 1,
+          remoteBasePath: 'team/photos',
           is_active: true,
-          health_status: 'healthy',
-          available_capacity_bytes: '42000000000'
+          healthStatus: 'healthy',
+          availableCapacityBytes: '42000000000'
         }
       ],
       sync_mode: 'archive',
@@ -111,6 +105,8 @@ export const mockRemotes: RemotesListResponse = {
       remoteName: 'driveA',
       displayName: 'Drive A',
       isActive: true,
+      cloudTrashEnabled: false,
+      cloudTrashBasePath: '.everdrive-trash',
       healthStatus: 'healthy',
       capacity: {
         totalCapacityBytes: '100000000000',
@@ -174,7 +170,14 @@ export const mockSettings: SettingsResponse = {
       },
       defaultCapacityWarningThresholdPercent: 85,
       hashAlgorithm: 'sha1',
-      logLevel: 'info'
+      logLevel: 'info',
+      cloudTrash: {
+        enabled: false,
+        retentionDays: 30,
+        cleanupIntervalHours: 24,
+        basePath: '.everdrive-trash',
+        maxDeleteBatchPerRun: 1000
+      }
     },
     hotUpdate: {
       hotUpdatedKeys: [],
@@ -183,3 +186,10 @@ export const mockSettings: SettingsResponse = {
     }
   }
 };
+
+export function cloneMockMappingTasks(): MappingTaskItem[] {
+  return mockMappingTasks.items.map((item: MappingTaskItem) => ({
+    ...item,
+    remotes: item.remotes.map((remote: MappingTaskItem['remotes'][number]) => ({ ...remote }))
+  }));
+}
