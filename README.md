@@ -15,7 +15,7 @@ everDrive 是一个“本地目录 -> 多云存储”的同步与管理系统，
   - 支持 `archive` / `mirror`
   - 支持冗余、分片、加密
 - 云盘管理
-  - 自动从 `rclone rcd` 同步 remote 列表
+  - 手动新增业务 remote，并从已配置的 `rclone remote` 中选择底层绑定
   - 手动维护总容量、预留容量、容量告警阈值
   - 每个云盘单独配置“自建云端回收站”
 - 同步执行
@@ -122,6 +122,54 @@ npm run dev
 - 前端：`http://localhost:43117` 或 Vite 启动日志里的地址
 - 后端健康检查：`http://localhost:43107/health`
 
+## 本地运行并通过 Tailscale 访问
+
+推荐直接执行仓库脚本：
+
+```bash
+cd /home/ubuntu/everDrive
+bash scripts/run-local-tailscale.sh
+```
+
+这个脚本会做这些事：
+
+- 确保后端和前端依赖已安装
+- 执行 Prisma generate / migrate
+- 构建后端与前端
+- 用 `tmux` 分别拉起：
+  - `rclone rcd`
+  - everDrive 后端
+  - everDrive 前端预览服务
+- 输出当前 Tailscale 访问地址
+
+默认端口：
+
+- 前端：`43117`
+- 后端：`43107`
+- `rclone rcd`：`127.0.0.1:5572`
+
+脚本成功后，可直接通过：
+
+- 前端：`http://<tailscale-ip>:43117/`
+- 后端健康检查：`http://<tailscale-ip>:43107/health`
+
+如果要查看后台会话：
+
+```bash
+tmux ls
+tmux attach -t everdrive-backend
+tmux attach -t everdrive-frontend
+tmux attach -t everdrive-rclone
+```
+
+如果要停止：
+
+```bash
+tmux kill-session -t everdrive-backend
+tmux kill-session -t everdrive-frontend
+tmux kill-session -t everdrive-rclone
+```
+
 ## Docker 方式
 
 ```bash
@@ -160,9 +208,13 @@ npm run docker:down
 
 实际使用时请切到“实时后端”。
 
-### 3. 先同步云盘列表
+### 3. 先新增业务云盘
 
-在“云盘列表”页刷新云盘，确认后端能从 `rclone rcd` 拿到 remote。
+在“云盘列表”页手动新增业务云盘：
+
+- 填写业务名称
+- 从当前 `rclone` 已配置的 remote 中选一个底层绑定
+- 设置容量、阈值、根路径与回收站策略
 
 ### 4. 配置每个云盘
 
@@ -173,8 +225,13 @@ npm run docker:down
 - 告警阈值
 - 是否启用自建云端回收站
 - 该云盘的回收站基础路径
+- 绑定的底层 `rclone remote`
 
-### 5. 新建映射任务
+### 5. 删除业务云盘
+
+业务云盘支持在“云盘列表”页手动删除。删除后会移除该业务 remote 本身以及相关联的映射绑定记录。
+
+### 6. 新建映射任务
 
 在“映射任务管理”页填写：
 

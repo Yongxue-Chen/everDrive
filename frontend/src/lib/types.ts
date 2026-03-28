@@ -127,6 +127,8 @@ export type RemotesListResponse = {
     cloudTrashEnabled: boolean;
     cloudTrashBasePath: string;
     healthStatus: string;
+    lastCheckedAt: string | null;
+    lastAlertAt: string | null;
     capacity: {
       totalCapacityBytes: string;
       usedCapacityBytes: string;
@@ -150,12 +152,32 @@ export type RemotesListResponse = {
   }>;
 };
 
-export type SyncCloudRemotesResponse = {
-  summary: {
-    added: string[];
-    reactivated: string[];
-    disabled: string[];
-  };
+export type RcloneRemoteOptionsResponse = {
+  items: Array<{
+    remoteName: string;
+    available: boolean;
+    boundRemoteId?: string;
+    boundDisplayName?: string;
+  }>;
+};
+
+export type CreateRemotePayload = {
+  displayName: string;
+  remoteName: string;
+  totalCapacity?: string;
+  reservedCapacity?: string;
+  warningThresholdPercent?: number;
+  cloudTrashEnabled?: boolean;
+  cloudTrashBasePath?: string;
+  remoteRootPath?: string;
+};
+
+export type CreateRemoteResponse = {
+  item: RemotesListResponse['items'][number];
+};
+
+export type DeleteRemoteResponse = {
+  deleted: boolean;
 };
 
 export type UpdateRemoteCapacityPayload = {
@@ -169,6 +191,8 @@ export type UpdateRemoteCapacityResponse = {
 };
 
 export type UpdateRemoteSettingsPayload = UpdateRemoteCapacityPayload & {
+  displayName?: string;
+  remoteName?: string;
   cloudTrashEnabled?: boolean;
   cloudTrashBasePath?: string;
   remoteRootPath?: string;

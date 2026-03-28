@@ -1,15 +1,5 @@
 import { HealthStatus, Prisma, PrismaClient } from '@prisma/client';
-
-export type RemoteUsageAggregate = {
-  remoteId: bigint;
-  usedCapacity: bigint;
-};
-
-export type SyncRemotesSummary = {
-  added: string[];
-  reactivated: string[];
-  disabled: string[];
-};
+import type { CreateRemoteInput, RemoteUsageAggregate } from './cloud-inventory.service.js';
 
 export class CloudInventoryRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -31,7 +21,7 @@ export class CloudInventoryRepository {
           }
         }
       },
-      orderBy: [{ isActive: 'desc' }, { remoteName: 'asc' }]
+      orderBy: [{ isActive: 'desc' }, { displayName: 'asc' }]
     });
   }
 
@@ -55,77 +45,76 @@ export class CloudInventoryRepository {
     });
   }
 
-  async syncRemotesFromRclone(remoteNames: string[]): Promise<SyncRemotesSummary> {
-    const normalized = [...new Set(remoteNames.map((name) => name.replace(/:$/, '').trim()).filter(Boolean))];
-    const now = new Date();
-
-    const existing = await this.prisma.cloudRemote.findMany({
-      select: {
-        remoteName: true,
-        remoteRootPath: true,
-        isActive: true
-      }
-    });
-
-    const existingMap = new Map(existing.map((item) => [item.remoteName, item]));
-    const added: string[] = [];
-    const reactivated: string[] = [];
-
-    await this.prisma.$transaction(async (tx) => {
-      for (const remoteName of normalized) {
-        const found = existingMap.get(remoteName);
-
-        if (!found) {
-          added.push(remoteName);
-          await tx.cloudRemote.create({
-            data: {
-              remoteName,
-              displayName: remoteName,
-              remoteRootPath: '',
-              isActive: true,
-              healthStatus: HealthStatus.healthy,
-              lastSyncAt: now
+  async getRemoteByDisplayName(displayName: string) {
+    return this.prisma.cloudRemote.findUnique({
+      where: { displayName },
+      include: {
+        mappingTaskRemotes: {
+          include: {
+            mappingTask: {
+              select: {
+                id: true,
+                name: true,
+                localPath: true,
+                isActive: true
+              }
             }
-          });
-          continue;
-        }
-
-        if (!found.isActive) {
-          reactivated.push(remoteName);
-        }
-
-        await tx.cloudRemote.update({
-          where: { remoteName },
-          data: {
-            isActive: true,
-            healthStatus: HealthStatus.healthy,
-            lastSyncAt: now
           }
-        });
-      }
-
-      await tx.cloudRemote.updateMany({
-        where: {
-          remoteName: { notIn: normalized },
-          isActive: true
-        },
-        data: {
-          isActive: false,
-          healthStatus: HealthStatus.unavailable,
-          lastSyncAt: now
         }
-      });
+      }
     });
+  }
 
-    const disabled = existing
-      .filter((item) => item.isActive && !normalized.includes(item.remoteName))
-      .map((item) => item.remoteName);
+  async getRemoteByBoundRemoteName(remoteName: string) {
+    return this.prisma.cloudRemote.findUnique({
+      where: { remoteName },
+      include: {
+        mappingTaskRemotes: {
+          include: {
+            mappingTask: {
+              select: {
+                id: true,
+                name: true,
+                localPath: true,
+                isActive: true
+              }
+            }
+          }
+        }
+      }
+    });
+  }
 
-    return {
-      added,
-      reactivated,
-      disabled
-    };
+  async createRemote(input: CreateRemoteInput) {
+    return this.prisma.cloudRemote.create({
+      data: {
+        displayName: input.displayName,
+        remoteName: input.remoteName,
+        totalCapacity: input.totalCapacity ?? 0n,
+        reservedCapacity: input.reservedCapacity ?? 0n,
+        warningThresholdPercent: input.warningThresholdPercent ?? 85,
+        cloudTrashEnabled: input.cloudTrashEnabled ?? false,
+        cloudTrashBasePath: input.cloudTrashBasePath ?? '.everdrive-trash',
+        remoteRootPath: input.remoteRootPath ?? '',
+        healthStatus: HealthStatus.healthy,
+        isActive: true,
+        lastCheckedAt: new Date()
+      },
+      include: {
+        mappingTaskRemotes: {
+          include: {
+            mappingTask: {
+              select: {
+                id: true,
+                name: true,
+                localPath: true,
+                isActive: true
+              }
+            }
+          }
+        }
+      }
+    });
   }
 
   async getUsedCapacityByRemoteIds(remoteIds?: bigint[]): Promise<RemoteUsageAggregate[]> {
@@ -151,7 +140,8 @@ export class CloudInventoryRepository {
       where: { id: remoteId },
       data: {
         usedCapacity,
-        healthStatus
+        healthStatus,
+        lastCheckedAt: new Date()
       }
     });
   }
@@ -159,6 +149,7 @@ export class CloudInventoryRepository {
   async updateRemoteCapacitySettings(
     remoteId: bigint,
     input: {
+      displayName?: string;
       totalCapacity?: bigint;
       reservedCapacity?: bigint;
       warningThresholdPercent?: number;
@@ -170,23 +161,65 @@ export class CloudInventoryRepository {
   async updateRemoteSettings(
     remoteId: bigint,
     input: {
+      displayName?: string;
       totalCapacity?: bigint;
       reservedCapacity?: bigint;
       warningThresholdPercent?: number;
       cloudTrashEnabled?: boolean;
       cloudTrashBasePath?: string;
+      remoteName?: string;
       remoteRootPath?: string;
     }
   ): Promise<void> {
     await this.prisma.cloudRemote.update({
       where: { id: remoteId },
       data: {
+        displayName: input.displayName,
         totalCapacity: input.totalCapacity,
         reservedCapacity: input.reservedCapacity,
         warningThresholdPercent: input.warningThresholdPercent,
         cloudTrashEnabled: input.cloudTrashEnabled,
         cloudTrashBasePath: input.cloudTrashBasePath,
+        remoteName: input.remoteName,
         remoteRootPath: input.remoteRootPath
+      }
+    });
+  }
+
+  async updateRemoteBindingStatus(
+    remoteId: bigint,
+    input: {
+      healthStatus: HealthStatus;
+      isActive?: boolean;
+      lastCheckedAt: Date;
+      lastAlertAt?: Date;
+    }
+  ): Promise<void> {
+    await this.prisma.cloudRemote.update({
+      where: { id: remoteId },
+      data: {
+        healthStatus: input.healthStatus,
+        isActive: input.isActive,
+        lastCheckedAt: input.lastCheckedAt,
+        lastAlertAt: input.lastAlertAt
+      }
+    });
+  }
+
+  async writeRemoteAlert(
+    remoteId: bigint,
+    input: { code: string; message: string; metadataJson?: Record<string, unknown> }
+  ): Promise<void> {
+    await this.prisma.operationLog.create({
+      data: {
+        operationType: 'update',
+        targetType: 'remote',
+        targetId: remoteId,
+        message: input.message,
+        metadataJson: {
+          code: input.code,
+          ...(input.metadataJson ?? {})
+        }
       }
     });
   }
@@ -198,6 +231,12 @@ export class CloudInventoryRepository {
         isActive,
         healthStatus: isActive ? HealthStatus.healthy : HealthStatus.unavailable
       }
+    });
+  }
+
+  async deleteRemote(remoteId: bigint): Promise<void> {
+    await this.prisma.cloudRemote.delete({
+      where: { id: remoteId }
     });
   }
 }

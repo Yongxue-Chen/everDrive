@@ -4,24 +4,47 @@ import { parseOrBadRequest } from '../../lib/request-parser.js';
 import { AuditService } from '../audit/audit.service.js';
 import { JobQueueService } from '../job-queue/job-queue.service.js';
 import { CloudInventoryService } from './cloud-inventory.service.js';
-import { parseRemoteId, toBigInt, UpdateRemoteActiveSchema, UpdateRemoteCapacitySchema, UpdateRemoteSettingsSchema } from './remote.dto.js';
+import {
+  CreateRemoteSchema,
+  parseRemoteId,
+  toBigInt,
+  UpdateRemoteActiveSchema,
+  UpdateRemoteCapacitySchema,
+  UpdateRemoteSettingsSchema
+} from './remote.dto.js';
 
 export function createRemoteRouter(service: CloudInventoryService, queue: JobQueueService, auditService?: AuditService): Router {
   const router = Router();
 
   router.post(
-    '/api/remotes/sync',
-    asyncHandler(async (_req, res) => {
-      const summary = await service.syncRemotes();
+    '/api/remotes',
+    asyncHandler(async (req, res) => {
+      const body = parseOrBadRequest(CreateRemoteSchema, req.body);
+      const item = await service.createRemote({
+        displayName: body.displayName,
+        remoteName: body.remoteName,
+        totalCapacity: toBigInt(body.totalCapacity),
+        reservedCapacity: toBigInt(body.reservedCapacity),
+        warningThresholdPercent: body.warningThresholdPercent,
+        cloudTrashEnabled: body.cloudTrashEnabled,
+        cloudTrashBasePath: body.cloudTrashBasePath,
+        remoteRootPath: body.remoteRootPath
+      });
       await auditService?.write({
-        operationType: 'sync',
+        operationType: 'create',
         targetType: 'remote',
-        message: 'Remote inventory sync completed',
-        metadataJson: summary as unknown as any
+        message: `Business remote created: ${body.displayName}`,
+        metadataJson: { remoteName: body.remoteName } as unknown as any
       });
-      res.status(200).json({
-        summary
-      });
+      res.status(201).json({ item });
+    })
+  );
+
+  router.get(
+    '/api/remotes/rclone-options',
+    asyncHandler(async (_req, res) => {
+      const items = await service.listRcloneRemoteOptions();
+      res.status(200).json({ items });
     })
   );
 
@@ -63,6 +86,8 @@ export function createRemoteRouter(service: CloudInventoryService, queue: JobQue
       const body = parseOrBadRequest(UpdateRemoteSettingsSchema, req.body);
 
       const item = await service.updateRemoteSettings(remoteId, {
+        displayName: body.displayName,
+        remoteName: body.remoteName,
         totalCapacity: toBigInt(body.totalCapacity),
         reservedCapacity: toBigInt(body.reservedCapacity),
         warningThresholdPercent: body.warningThresholdPercent,
@@ -101,6 +126,21 @@ export function createRemoteRouter(service: CloudInventoryService, queue: JobQue
 
       const item = await service.setRemoteActive(remoteId, body.isActive);
       res.status(200).json({ item });
+    })
+  );
+
+  router.delete(
+    '/api/remotes/:remoteId',
+    asyncHandler(async (req, res) => {
+      const remoteId = parseRemoteId(req.params.remoteId);
+      await service.deleteRemote(remoteId);
+      await auditService?.write({
+        operationType: 'delete',
+        targetType: 'remote',
+        targetId: remoteId,
+        message: `Business remote deleted: ${remoteId.toString()}`
+      });
+      res.status(200).json({ deleted: true });
     })
   );
 

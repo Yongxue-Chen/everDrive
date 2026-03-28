@@ -17,6 +17,8 @@ frontend/.env.*
 
 # runtime data
 runtime/
+.run/
+frontend/.run/
 *.log
 
 # test/coverage

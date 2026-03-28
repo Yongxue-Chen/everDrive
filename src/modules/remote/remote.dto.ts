@@ -3,8 +3,23 @@ import { AppError } from '../../errors/app-error.js';
 
 const bigintInputSchema = z.union([z.string().regex(/^\d+$/), z.number().int().nonnegative(), z.bigint()]);
 
+const remoteNameSchema = z.string().min(1).max(128);
+
+export const CreateRemoteSchema = z.object({
+  displayName: z.string().min(1).max(128),
+  remoteName: remoteNameSchema,
+  totalCapacity: bigintInputSchema.optional(),
+  reservedCapacity: bigintInputSchema.optional(),
+  warningThresholdPercent: z.number().int().min(1).max(100).optional(),
+  cloudTrashEnabled: z.boolean().optional(),
+  cloudTrashBasePath: z.string().min(1).max(512).optional(),
+  remoteRootPath: z.string().max(512).optional()
+});
+
 export const UpdateRemoteSettingsSchema = z
   .object({
+    displayName: z.string().min(1).max(128).optional(),
+    remoteName: remoteNameSchema.optional(),
     totalCapacity: bigintInputSchema.optional(),
     reservedCapacity: bigintInputSchema.optional(),
     warningThresholdPercent: z.number().int().min(1).max(100).optional(),

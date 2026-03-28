@@ -109,6 +109,8 @@ export const mockRemotes: RemotesListResponse = {
       cloudTrashEnabled: false,
       cloudTrashBasePath: '.everdrive-trash',
       healthStatus: 'healthy',
+      lastCheckedAt: '2026-03-28T11:00:00.000Z',
+      lastAlertAt: null,
       capacity: {
         totalCapacityBytes: '100000000000',
         usedCapacityBytes: '58000000000',

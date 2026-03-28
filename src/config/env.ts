@@ -21,6 +21,7 @@ const EnvSchema = z.object({
 
   SCAN_BATCH_SIZE: z.coerce.number().int().positive().default(1000),
   SCAN_INTERVAL_SECONDS: z.coerce.number().int().positive().default(30),
+  REMOTE_HEALTHCHECK_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
 
   SYNC_CONCURRENCY: z.coerce.number().int().positive().default(4),
   RCLONE_CONCURRENCY: z.coerce.number().int().positive().default(4),

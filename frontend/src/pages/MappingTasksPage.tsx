@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { LocalPathPicker } from '../components/LocalPathPicker';
 import { MappingTable } from '../components/MappingTable';
 import {
-  syncCloudRemotes,
   createMappingTask,
   deleteMappingTask,
   fetchCloudRemotes,
@@ -87,20 +86,6 @@ export function MappingTasksPage() {
     window.addEventListener('everdrive_api_mode_changed', onModeChanged);
     return () => window.removeEventListener('everdrive_api_mode_changed', onModeChanged);
   }, []);
-
-  const syncRemotesMutation = useMutation({
-    mutationFn: syncCloudRemotes,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['cloud-remotes'] });
-    }
-  });
-
-  useEffect(() => {
-    if (mode !== 'live') {
-      return;
-    }
-    syncRemotesMutation.mutate();
-  }, [mode]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: MappingFormState) => {
@@ -201,10 +186,7 @@ export function MappingTasksPage() {
           <button onClick={resetForm}>新建映射</button>
           <button
             onClick={async () => {
-              if (mode === 'live') {
-                await syncRemotesMutation.mutateAsync();
-                await remotesQuery.refetch();
-              }
+              await remotesQuery.refetch();
               await query.refetch();
             }}
           >
@@ -349,14 +331,12 @@ export function MappingTasksPage() {
               </button>
             </div>
 
-            {syncRemotesMutation.isPending ? <p>正在从 rclone 同步远端列表...</p> : null}
-            {syncRemotesMutation.error ? <p className="error">同步 rclone 远端失败。</p> : null}
             {remotesQuery.isLoading ? <p>正在加载云盘列表...</p> : null}
             {remotesQuery.error ? <p className="error">加载云盘列表失败。</p> : null}
             {remotesQuery.data && remotesQuery.data.items.length === 0 ? (
               <div className="panel panel--warning">
                 <strong>当前没有可绑定云盘。</strong>
-                <p className="muted">请先在 rclone 中配置 remote；本页刷新时会自动重新检测。</p>
+                <p className="muted">请先在“云盘列表”页新增业务云盘，然后再回来绑定。</p>
               </div>
             ) : null}
 
@@ -378,7 +358,7 @@ export function MappingTasksPage() {
                     <option value="">请选择云盘</option>
                     {(remotesQuery.data?.items ?? []).map((remote) => (
                       <option key={remote.id} value={remote.id}>
-                        {remote.displayName}（{remote.remoteName}）
+                        {remote.displayName}
                       </option>
                     ))}
                   </select>

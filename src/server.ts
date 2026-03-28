@@ -219,9 +219,19 @@ async function bootstrap(): Promise<void> {
   });
   autoSyncScheduler.start();
 
+  const remoteHealthCheckTimer = setInterval(() => {
+    void cloudInventoryService.checkRemoteBindings().catch((error) => {
+      logger.warn('remote binding health check failed', { err: error });
+    });
+  }, env.REMOTE_HEALTHCHECK_INTERVAL_SECONDS * 1000);
+  void cloudInventoryService.checkRemoteBindings().catch((error) => {
+    logger.warn('initial remote binding health check failed', { err: error });
+  });
+
   const shutdown = async (signal: string): Promise<void> => {
     logger.info('shutdown started', { signal });
     autoSyncScheduler.stop();
+    clearInterval(remoteHealthCheckTimer);
 
     await logger.audit({
       operationType: 'update',

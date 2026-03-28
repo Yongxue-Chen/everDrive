@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getApiMode, setApiMode, syncCloudRemotes, updateRemoteCapacity, updateRemoteSettings } from '../frontend/src/lib/api.js';
+import {
+  createCloudRemote,
+  deleteCloudRemote,
+  getApiMode,
+  listRcloneRemoteOptions,
+  setApiMode,
+  updateRemoteCapacity,
+  updateRemoteSettings
+} from '../frontend/src/lib/api.js';
 
 type StorageMap = Record<string, string>;
 
@@ -31,22 +39,69 @@ describe('frontend remote api', () => {
     vi.stubGlobal('fetch', vi.fn());
   });
 
-  it('syncs remotes through the live backend endpoint', async () => {
+  it('creates a business remote through the live backend endpoint', async () => {
     setApiMode('live');
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ summary: { added: ['mymega'], reactivated: [], disabled: [] } })
+      json: async () => ({
+        item: {
+          id: '11',
+          remoteName: 'driveA',
+          displayName: '相册盘',
+          remoteRootPath: '',
+          isActive: true,
+          cloudTrashEnabled: false,
+          cloudTrashBasePath: '.everdrive-trash',
+          healthStatus: 'healthy',
+          capacity: {
+            totalCapacityBytes: '1000',
+            usedCapacityBytes: '0',
+            reservedCapacityBytes: '0',
+            remainingCapacityBytes: '1000',
+            usagePercent: 0,
+            warningThresholdPercent: 85,
+            alert: false,
+            realUsageAvailable: false
+          },
+          mappedDirectories: [],
+          lastSyncAt: null,
+          updatedAt: '2026-03-27T14:00:00.000Z'
+        }
+      })
     } as Response);
 
-    const result = await syncCloudRemotes();
+    const result = await createCloudRemote({
+      displayName: '相册盘',
+      remoteName: 'driveA',
+      totalCapacity: '1000'
+    });
 
     expect(getApiMode()).toBe('live');
-    expect(result.summary.added).toEqual(['mymega']);
+    expect(result.item.displayName).toBe('相册盘');
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/remotes/sync',
+      '/api/remotes',
       expect.objectContaining({ method: 'POST' })
     );
+  });
+
+  it('loads rclone remote options through the live backend endpoint', async () => {
+    setApiMode('live');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        items: [
+          { remoteName: 'driveA', available: true },
+          { remoteName: 'driveB', available: false, boundRemoteId: '11', boundDisplayName: '相册盘' }
+        ]
+      })
+    } as Response);
+
+    const result = await listRcloneRemoteOptions();
+
+    expect(result.items[1]?.boundDisplayName).toBe('相册盘');
+    expect(fetchMock).toHaveBeenCalledWith('/api/remotes/rclone-options');
   });
 
   it('updates remote capacity through the live backend endpoint', async () => {
@@ -133,6 +188,23 @@ describe('frontend remote api', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/remotes/11',
       expect.objectContaining({ method: 'PATCH' })
+    );
+  });
+
+  it('deletes a business remote through the live backend endpoint', async () => {
+    setApiMode('live');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ deleted: true })
+    } as Response);
+
+    const result = await deleteCloudRemote('11');
+
+    expect(result.deleted).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/remotes/11',
+      expect.objectContaining({ method: 'DELETE' })
     );
   });
 });

@@ -1,5 +1,8 @@
 import type {
   ApiMode,
+  CreateRemotePayload,
+  CreateRemoteResponse,
+  DeleteRemoteResponse,
   CreateMappingTaskPayload,
   CloudViewResponse,
   LocalPathBrowseResponse,
@@ -8,9 +11,9 @@ import type {
   MappingTaskListResponse,
   MappingTaskMutationResponse,
   QueueJob,
+  RcloneRemoteOptionsResponse,
   RemotesListResponse,
   SettingsResponse,
-  SyncCloudRemotesResponse,
   UpdateMappingTaskPayload,
   UpdateRemoteCapacityPayload,
   UpdateRemoteCapacityResponse,
@@ -260,19 +263,66 @@ export async function fetchCloudRemotes(): Promise<RemotesListResponse> {
   return requestJson<RemotesListResponse>('/api/remotes');
 }
 
-export async function syncCloudRemotes(): Promise<SyncCloudRemotesResponse> {
+export async function listRcloneRemoteOptions(): Promise<RcloneRemoteOptionsResponse> {
   if (getApiMode() === 'mock') {
     await sleep(120);
     return {
-      summary: {
-        added: mockRemotes.items.map((item: RemotesListResponse['items'][number]) => item.remoteName),
-        reactivated: [],
-        disabled: []
-      }
+      items: ['driveA', 'driveB', 'driveC'].map((remoteName) => {
+        const bound = mockRemotes.items.find((item: RemotesListResponse['items'][number]) => item.remoteName === remoteName);
+        return bound
+          ? { remoteName, available: false, boundRemoteId: bound.id, boundDisplayName: bound.displayName }
+          : { remoteName, available: true };
+      })
     };
   }
 
-  return requestJsonWithBody<SyncCloudRemotesResponse>('/api/remotes/sync', 'POST');
+  return requestJson<RcloneRemoteOptionsResponse>('/api/remotes/rclone-options');
+}
+
+export async function createCloudRemote(payload: CreateRemotePayload): Promise<CreateRemoteResponse> {
+  if (getApiMode() === 'mock') {
+    await sleep(120);
+    const totalCapacityBytes = payload.totalCapacity ?? '0';
+    const item: RemotesListResponse['items'][number] = {
+      id: String(Date.now()),
+      remoteName: payload.remoteName,
+      displayName: payload.displayName,
+      remoteRootPath: payload.remoteRootPath ?? '',
+      isActive: true,
+      cloudTrashEnabled: payload.cloudTrashEnabled ?? false,
+      cloudTrashBasePath: payload.cloudTrashBasePath ?? '.everdrive-trash',
+      healthStatus: 'healthy',
+      lastCheckedAt: new Date().toISOString(),
+      lastAlertAt: null,
+      capacity: {
+        totalCapacityBytes,
+        usedCapacityBytes: '0',
+        reservedCapacityBytes: payload.reservedCapacity ?? '0',
+        remainingCapacityBytes: totalCapacityBytes,
+        usagePercent: 0,
+        warningThresholdPercent: payload.warningThresholdPercent ?? 85,
+        alert: false,
+        realUsageAvailable: false
+      },
+      mappedDirectories: [],
+      lastSyncAt: null,
+      updatedAt: new Date().toISOString()
+    };
+    mockRemotes.items.unshift(item);
+    return { item };
+  }
+
+  return requestJsonWithBody<CreateRemoteResponse>('/api/remotes', 'POST', payload);
+}
+
+export async function deleteCloudRemote(remoteId: string): Promise<DeleteRemoteResponse> {
+  if (getApiMode() === 'mock') {
+    await sleep(120);
+    mockRemotes.items = mockRemotes.items.filter((item: RemotesListResponse['items'][number]) => item.id !== remoteId);
+    return { deleted: true };
+  }
+
+  return requestJsonWithBody<DeleteRemoteResponse>(`/api/remotes/${remoteId}`, 'DELETE');
 }
 
 export async function updateRemoteCapacity(

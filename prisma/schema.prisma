@@ -150,6 +150,8 @@ model CloudRemote {
   warningThresholdPercent Int   @default(85) @map("warning_threshold_percent") @db.UnsignedTinyInt
   healthStatus     HealthStatus @default(healthy) @map("health_status")
   isActive         Boolean      @default(true) @map("is_active")
+  lastCheckedAt    DateTime?    @map("last_checked_at") @db.DateTime(3)
+  lastAlertAt      DateTime?    @map("last_alert_at") @db.DateTime(3)
   lastSyncAt       DateTime?    @map("last_sync_at") @db.DateTime(3)
   createdAt        DateTime     @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
@@ -158,8 +160,11 @@ model CloudRemote {
   fileLocations      FileLocation[]
 
   @@unique([remoteName], map: "uniq_cloud_remotes_remote_name")
+  @@unique([displayName], map: "uniq_cloud_remotes_display_name")
   @@index([isActive, healthStatus], map: "idx_cloud_remotes_active_health")
   @@index([warningThresholdPercent], map: "idx_cloud_remotes_warning_threshold")
+  @@index([lastCheckedAt], map: "idx_cloud_remotes_last_checked")
+  @@index([lastAlertAt], map: "idx_cloud_remotes_last_alert")
   @@index([lastSyncAt], map: "idx_cloud_remotes_last_sync")
   @@map("cloud_remotes")
 }
