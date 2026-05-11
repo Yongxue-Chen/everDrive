@@ -14,7 +14,7 @@ everDrive 是一个“本地目录 -> 多云存储”的同步与管理系统。
 
 - 后端：Node.js + TypeScript + Express + Prisma。
 - 前端：React + Vite。
-- 数据库：MySQL。
+- 数据库：远端 MySQL，例如 Oracle Cloud MySQL、云厂商托管 MySQL，或你已经部署好的 MySQL。
 - 文件执行层：`rclone rcd`。
 
 默认端口：
@@ -22,7 +22,7 @@ everDrive 是一个“本地目录 -> 多云存储”的同步与管理系统。
 - 前端：`43117`
 - 后端：`43107`
 - `rclone rcd`：`5572`
-- MySQL：`3306`
+- MySQL：通常是远端数据库的 `3306`，以你的云端数据库实际地址和端口为准。
 
 后端健康检查：
 
@@ -47,7 +47,9 @@ curl http://127.0.0.1:43107/ready
 
 启动 everDrive 前，至少要满足：
 
-- MySQL 可连接，且目标数据库已创建。
+- 远端 MySQL 可连接，且目标数据库已创建。
+- 远端 MySQL 用户有建表、迁移、读写权限。
+- 当前机器或 Docker 容器所在网络能访问远端 MySQL 地址和端口；云厂商安全组、防火墙、白名单需要放行。
 - `rclone rcd` 已启动，账号密码和 `.env` 中一致。
 - `rclone rcd` 使用的 rclone 配置里已经有可用 remote。
 - 后端 `.env` 中的 `DATABASE_URL`、`RCLONE_RCD_*` 配置正确。
@@ -74,7 +76,7 @@ curl -u "admin:change_me" -X POST http://127.0.0.1:5572/core/version
 
 关键变量：
 
-- `DATABASE_URL`: MySQL 连接串，例如 `mysql://everdrive:pass@127.0.0.1:3306/everdrive`
+- `DATABASE_URL`: 远端 MySQL 连接串，例如 `mysql://everdrive:pass@your-cloud-mysql-host:3306/everdrive`
 - `RCLONE_RCD_URL`: rclone RC 地址，例如 `http://127.0.0.1:5572`
 - `RCLONE_RCD_USER`: rclone RC Basic Auth 用户
 - `RCLONE_RCD_PASS`: rclone RC Basic Auth 密码
@@ -91,7 +93,7 @@ curl -u "admin:change_me" -X POST http://127.0.0.1:5572/core/version
 
 ## 不使用 Docker 启动
 
-适合本机开发、已有 MySQL/rclone 环境，或希望用 systemd/tmux 自己托管服务的情况。
+适合本机开发、连接云端 MySQL，并在当前机器上用 systemd/tmux 自己托管后端、前端和 `rclone rcd` 的情况。
 
 ### 1. 安装依赖
 
@@ -99,8 +101,8 @@ curl -u "admin:change_me" -X POST http://127.0.0.1:5572/core/version
 
 - Node.js 20+
 - npm
-- MySQL 8+
 - rclone
+- 一个可访问的远端 MySQL 8+ 数据库，例如 Oracle Cloud MySQL
 
 进入项目：
 
@@ -112,9 +114,9 @@ cd frontend
 npm ci
 ```
 
-### 2. 初始化 MySQL
+### 2. 准备远端 MySQL
 
-示例 SQL：
+在云端 MySQL 中提前创建数据库和用户。示例 SQL：
 
 ```sql
 CREATE DATABASE everdrive CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -122,6 +124,14 @@ CREATE USER 'everdrive'@'%' IDENTIFIED BY 'ChangeThisStrongPassword';
 GRANT ALL PRIVILEGES ON everdrive.* TO 'everdrive'@'%';
 FLUSH PRIVILEGES;
 ```
+
+如果你使用的是 Oracle Cloud、RDS、PolarDB 或其他托管数据库，也可以在控制台创建数据库和账号。关键是最终拿到可从当前机器访问的主机名、端口、用户名、密码和数据库名。
+
+需要确认：
+
+- 云数据库安全组或访问控制允许当前机器 IP 连接。
+- 数据库监听端口通常是 `3306`。
+- 用户有执行 Prisma migration 所需的 DDL 权限。
 
 ### 3. 配置后端 `.env`
 
@@ -133,7 +143,7 @@ cp .env.example .env
 编辑 `.env`，至少确认：
 
 ```env
-DATABASE_URL=mysql://everdrive:ChangeThisStrongPassword@127.0.0.1:3306/everdrive
+DATABASE_URL=mysql://everdrive:ChangeThisStrongPassword@your-cloud-mysql-host:3306/everdrive
 RCLONE_RCD_URL=http://127.0.0.1:5572
 RCLONE_RCD_USER=admin
 RCLONE_RCD_PASS=change_me
@@ -260,12 +270,13 @@ tmux kill-session -t everdrive-rclone
 
 ## 使用 Docker 启动
 
-Docker Compose 会启动四个服务：
+Docker Compose 主要启动三个应用侧服务：
 
-- `mysql`
 - `rclone`
 - `backend`
 - `frontend`
+
+仓库里仍保留了 `mysql` 服务，方便临时本地测试；但常规部署建议使用你的云端 MySQL，不需要启动 Compose 里的 `mysql`。
 
 ### 1. 准备 `.env`
 
@@ -277,9 +288,7 @@ cp .env.example .env
 建议至少改掉这些默认值：
 
 ```env
-MYSQL_ROOT_PASSWORD=replace_with_strong_root_password
-MYSQL_PASSWORD=replace_with_strong_app_password
-DATABASE_URL=mysql://everdrive:replace_with_strong_app_password@mysql:3306/everdrive
+DATABASE_URL=mysql://everdrive:replace_with_strong_app_password@your-cloud-mysql-host:3306/everdrive
 RCLONE_RCD_URL=http://rclone:5572
 RCLONE_RCD_USER=admin
 RCLONE_RCD_PASS=replace_with_strong_rclone_password
@@ -289,17 +298,22 @@ BACKEND_PORT=43107
 RCLONE_RCD_PORT=5572
 ```
 
-注意：如果直接从 `.env.example` 复制，里面的 `DATABASE_URL` 和 `RCLONE_RCD_URL` 是非 Docker 本地运行示例，分别指向 `127.0.0.1`。Docker Compose 模式下后端容器必须使用容器网络地址：
+注意：如果直接从 `.env.example` 复制，里面的 `DATABASE_URL` 是非 Docker 本地示例，指向 `127.0.0.1`。Docker 模式连接云端数据库时，必须把它改成云数据库地址：
 
-- `DATABASE_URL` 的主机名应是 `mysql`
-- `RCLONE_RCD_URL` 应是 `http://rclone:5572`
+```env
+DATABASE_URL=mysql://user:password@your-cloud-mysql-host:3306/everdrive
+```
 
-如果删除 `.env` 里的 `DATABASE_URL` 和 `RCLONE_RCD_URL` 两行，Compose 也会使用 `docker-compose.yml` 中的默认容器网络地址。
+Docker 模式下 `RCLONE_RCD_URL` 应使用 Compose 服务名：
 
-### 2. 启动 MySQL 和 rclone
+```env
+RCLONE_RCD_URL=http://rclone:5572
+```
+
+### 2. 启动 rclone
 
 ```bash
-docker compose up -d mysql rclone
+docker compose up -d rclone
 ```
 
 ### 3. 在 Docker rclone 容器里配置 remote
@@ -324,7 +338,7 @@ curl -u "$RCLONE_RCD_USER:$RCLONE_RCD_PASS" -X POST "http://127.0.0.1:${RCLONE_R
 
 ```bash
 docker compose build
-docker compose up -d
+docker compose up -d backend frontend
 ```
 
 访问：
@@ -343,7 +357,7 @@ docker compose restart backend
 docker compose down
 ```
 
-谨慎使用下面命令，它会删除 MySQL 和 rclone 配置数据卷：
+谨慎使用下面命令，它会删除 rclone 配置数据卷；如果你启动过 Compose 内置 `mysql`，也会删除本地测试数据库数据卷：
 
 ```bash
 docker compose down -v
@@ -418,18 +432,20 @@ Docker：
 ```bash
 cd /home/chandler.yx.chen/services-lab/everDrive
 npm run docker:build
-npm run docker:up
+docker compose up -d rclone backend frontend
 npm run docker:logs
 npm run docker:down
 ```
+
+`npm run docker:up` 会执行 `docker compose up -d`，会把 Compose 文件里的本地测试 `mysql` 服务也一起拉起。使用云端数据库时，建议显式启动 `rclone backend frontend`。
 
 ## 故障排查
 
 ### `/ready` 返回 503
 
-通常是 MySQL 或 rclone rcd 不可用。
+通常是远端 MySQL 或 rclone rcd 不可用。
 
-检查 MySQL：
+检查远端 MySQL 连接串和迁移权限：
 
 ```bash
 npm run prisma:migrate:deploy
@@ -467,9 +483,9 @@ docker compose logs -f backend
 
 常见原因：
 
-- MySQL 未就绪。
-- `DATABASE_URL` 写错。
-- 数据库用户没有权限。
+- 云端 MySQL 地址、端口、用户名或密码写错。
+- 云端数据库安全组、防火墙或白名单没有放行当前机器/容器出口 IP。
+- 数据库用户没有迁移或读写权限。
 - Prisma 迁移失败。
 
 ## 相关文档
