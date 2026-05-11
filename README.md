@@ -279,6 +279,8 @@ cp .env.example .env
 ```env
 MYSQL_ROOT_PASSWORD=replace_with_strong_root_password
 MYSQL_PASSWORD=replace_with_strong_app_password
+DATABASE_URL=mysql://everdrive:replace_with_strong_app_password@mysql:3306/everdrive
+RCLONE_RCD_URL=http://rclone:5572
 RCLONE_RCD_USER=admin
 RCLONE_RCD_PASS=replace_with_strong_rclone_password
 ENCRYPTION_MASTER_KEY=replace_with_a_long_random_secret
@@ -287,7 +289,12 @@ BACKEND_PORT=43107
 RCLONE_RCD_PORT=5572
 ```
 
-如果使用 Compose 内置 MySQL，通常不需要手写 `DATABASE_URL`，默认会指向 `mysql:3306`。如果你在 `.env` 里覆盖了 `DATABASE_URL`，要确认容器内能访问这个地址。
+注意：如果直接从 `.env.example` 复制，里面的 `DATABASE_URL` 和 `RCLONE_RCD_URL` 是非 Docker 本地运行示例，分别指向 `127.0.0.1`。Docker Compose 模式下后端容器必须使用容器网络地址：
+
+- `DATABASE_URL` 的主机名应是 `mysql`
+- `RCLONE_RCD_URL` 应是 `http://rclone:5572`
+
+如果删除 `.env` 里的 `DATABASE_URL` 和 `RCLONE_RCD_URL` 两行，Compose 也会使用 `docker-compose.yml` 中的默认容器网络地址。
 
 ### 2. 启动 MySQL 和 rclone
 
@@ -310,7 +317,7 @@ docker compose exec rclone rclone lsd yourRemote:
 验证 rclone rcd：
 
 ```bash
-curl -u "$RCLONE_RCD_USER:$RCLONE_RCD_PASS" -X POST http://127.0.0.1:5572/core/version
+curl -u "$RCLONE_RCD_USER:$RCLONE_RCD_PASS" -X POST "http://127.0.0.1:${RCLONE_RCD_PORT:-5572}/core/version"
 ```
 
 ### 4. 启动后端和前端
