@@ -289,7 +289,7 @@ cp .env.example .env
 
 ```env
 DATABASE_URL=mysql://everdrive:replace_with_strong_app_password@your-cloud-mysql-host:3306/everdrive
-RCLONE_RCD_URL=http://rclone:5572
+DOCKER_RCLONE_RCD_URL=http://rclone:5572
 RCLONE_RCD_USER=admin
 RCLONE_RCD_PASS=replace_with_strong_rclone_password
 ENCRYPTION_MASTER_KEY=replace_with_a_long_random_secret
@@ -304,11 +304,41 @@ RCLONE_RCD_PORT=5572
 DATABASE_URL=mysql://user:password@your-cloud-mysql-host:3306/everdrive
 ```
 
-Docker 模式下 `RCLONE_RCD_URL` 应使用 Compose 服务名：
+Docker 模式使用独立的 `DOCKER_RCLONE_RCD_URL`，避免本机运行使用的 `RCLONE_RCD_URL=http://127.0.0.1:5572` 被 Compose 继承后指向错误容器：
 
 ```env
-RCLONE_RCD_URL=http://rclone:5572
+DOCKER_RCLONE_RCD_URL=http://rclone:5572
+DATA_ROOT=/你的/NAS/共享目录
+DOCKER_LOCAL_PATH_ALLOWED_ROOTS=/data
 ```
+
+Compose 会将 `DATA_ROOT` 只读挂载到 backend 和 rclone 容器内相同的 `/data` 路径。映射任务应选择 `/data` 下的目录。加密任务使用的临时目录通过 `everdrive_tmp` 数据卷在 backend 和 rclone 之间共享。
+
+MySQL、backend 和 rclone RC 默认只绑定宿主机 `127.0.0.1`；前端仍监听所有网络接口。只有明确需要从其他机器直接访问内部服务时，才覆盖对应的 `MYSQL_BIND_ADDRESS`、`BACKEND_BIND_ADDRESS` 或 `RCLONE_BIND_ADDRESS`。
+
+### 空白主机和 NAS 准备
+
+设备只需要预先安装 Docker 与 Docker Compose。首次启动前创建默认数据目录并准备配置：
+
+```bash
+mkdir -p data
+cp .env.example .env
+```
+
+默认会把项目下的 `./data` 挂载为容器内 `/data`。NAS 上建议在 `.env` 中把 `DATA_ROOT` 改成实际共享目录的绝对路径，并确保 Docker 对该目录有读取权限。不要把 `DOCKER_LOCAL_PATH_ALLOWED_ROOTS` 改成宿主机路径；映射任务统一选择容器内的 `/data/...`。
+
+当前 Web 界面尚未提供应用登录。前端端口只应在可信局域网、VPN 或带鉴权的反向代理后访问，不要直接暴露到公网。
+
+### 飞牛 fnOS 部署
+
+1. 在飞牛应用中心安装 Docker；也可以安装 Portainer 后创建 Compose Stack。
+2. 将仓库或发布包放到持久化目录，并复制 `.env.example` 为 `.env`。
+3. 设置 `DATA_ROOT` 为飞牛共享文件夹的实际宿主机路径。
+4. 确认设备架构可用；默认 rclone 镜像支持 `amd64` 和 `arm64`。
+5. 启动 Stack 后，在 rclone 容器控制台执行 `rclone config` 完成云盘授权。
+6. 在 everDrive 映射任务中选择 `/data` 下的容器路径。
+
+升级或重建容器时必须保留 `mysql_data`、`rclone_config` 和 `everdrive_tmp` 数据卷。
 
 ### 2. 启动 rclone
 

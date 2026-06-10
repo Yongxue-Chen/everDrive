@@ -41,9 +41,16 @@
 - `MYSQL_DATABASE`
 - `MYSQL_USER`
 - `MYSQL_PASSWORD`
+- `DATA_ROOT`：宿主机或 NAS 上需要同步的数据根目录
+- `DOCKER_LOCAL_PATH_ALLOWED_ROOTS`：容器内允许选择的路径，默认 `/data`
+- `MYSQL_BIND_ADDRESS`：默认 `127.0.0.1`
 - `MYSQL_PORT`
 - `RCLONE_RCD_PORT`
+- `RCLONE_IMAGE`：固定的 rclone 容器镜像，默认 `rclone/rclone:1.73.2`
+- `RCLONE_BIND_ADDRESS`：默认 `127.0.0.1`
+- `DOCKER_RCLONE_RCD_URL`：默认 `http://rclone:5572`
 - `BACKEND_PORT`
+- `BACKEND_BIND_ADDRESS`：默认 `127.0.0.1`
 - `FRONTEND_PORT`
 - `VITE_DEFAULT_API_MODE`
 - `DB_MIGRATE_MAX_RETRIES`
@@ -177,6 +184,16 @@ server {
 - `/home/ubuntu/everDrive/frontend/docker/nginx.default.conf`
 
 ## 3.2 一键启动（含 mysql + rclone + backend + frontend）
+先在 `.env` 中设置 NAS 数据根目录：
+
+```env
+DATA_ROOT=/mnt/storage
+DOCKER_LOCAL_PATH_ALLOWED_ROOTS=/data
+DOCKER_RCLONE_RCD_URL=http://rclone:5572
+```
+
+`DATA_ROOT` 会只读挂载到 backend 和 rclone 的 `/data`。映射任务必须使用容器内路径，例如 `/data/photos`。加密同步产生的临时文件通过共享的 `everdrive_tmp` 数据卷交给 rclone 上传。
+
 ```bash
 cd /home/ubuntu/everDrive
 docker compose build
@@ -192,7 +209,7 @@ docker compose up -d
 先在 shell 或 `.env` 里覆盖：
 ```bash
 export DATABASE_URL='mysql://everdrive:pass@<external-mysql>:3306/everdrive'
-export RCLONE_RCD_URL='http://<external-rclone-host>:5572'
+export DOCKER_RCLONE_RCD_URL='http://<external-rclone-host>:5572'
 export RCLONE_RCD_USER='admin'
 export RCLONE_RCD_PASS='ChangeThisRclonePass'
 ```
@@ -216,6 +233,21 @@ docker compose down
 # 停止并删除容器 + 数据卷（谨慎）
 docker compose down -v
 ```
+
+## 3.5 飞牛 fnOS / Portainer 部署
+
+飞牛设备只需要安装 Docker，推荐通过 Docker Compose 或 Portainer Stack 部署：
+
+1. 将项目放入飞牛持久化目录，并复制 `.env.example` 为 `.env`。
+2. 将 `DATA_ROOT` 设置为飞牛共享文件夹的实际宿主机路径，例如 `/vol1/1000/photos`；实际路径以飞牛界面显示为准。
+3. 保持 `DOCKER_LOCAL_PATH_ALLOWED_ROOTS=/data`。everDrive 中创建映射时选择 `/data/...`，不要填写宿主机路径。
+4. 确认 Docker 服务账号对 `DATA_ROOT` 有读取权限。
+5. 启动后进入 rclone 容器控制台执行 `rclone config`。
+6. 保留 `mysql_data`、`rclone_config` 和 `everdrive_tmp` 数据卷，以免升级时丢失数据库、云盘授权或进行中的加密临时文件。
+
+默认 rclone 镜像同时支持 `amd64` 和 `arm64`。如飞牛设备使用其他架构，部署前应检查所有镜像的架构支持。
+
+当前前端没有应用级登录鉴权。只应在可信局域网、VPN 或带鉴权的反向代理后访问，不能直接暴露到公网。MySQL、backend 和 rclone RC 默认只绑定宿主机 `127.0.0.1`。
 
 ## 4. 开发环境运行说明
 

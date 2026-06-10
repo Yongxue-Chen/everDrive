@@ -41,7 +41,7 @@ This does not replace application authentication. Users must still avoid exposin
 
 ## Health And Startup
 
-Add health checks for rclone, backend, and frontend. Backend waits for healthy MySQL and rclone services before starting. Frontend waits for a healthy backend.
+Add health checks for rclone, backend, and frontend. MySQL retains its own health check, while the backend entrypoint handles both local and external database readiness through migration retries. Backend waits for the Compose rclone service before starting, and frontend waits for a healthy backend.
 
 Database migrations remain in the backend entrypoint and retain retry behavior.
 

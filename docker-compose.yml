@@ -10,7 +10,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${MYSQL_BIND_ADDRESS:-127.0.0.1}:${MYSQL_PORT:-3306}:3306"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
       interval: 10s
@@ -19,19 +19,29 @@ services:
     restart: unless-stopped
 
   rclone:
-    image: rclone/rclone:latest
+    image: ${RCLONE_IMAGE:-rclone/rclone:1.73.2}
     command:
       - rcd
       - --rc-addr=:5572
       - --rc-user=${RCLONE_RCD_USER:-admin}
       - --rc-pass=${RCLONE_RCD_PASS:-change_me}
     ports:
-      - "${RCLONE_RCD_PORT:-5572}:5572"
+      - "${RCLONE_BIND_ADDRESS:-127.0.0.1}:${RCLONE_RCD_PORT:-5572}:5572"
     volumes:
       - rclone_config:/config/rclone
+      - "${DATA_ROOT:-./data}:/data:ro"
+      - everdrive_tmp:/var/lib/everdrive/tmp:ro
+    healthcheck:
+      test: ["CMD", "rclone", "rc", "core/version", "--url=http://127.0.0.1:5572", "--user=${RCLONE_RCD_USER:-admin}", "--pass=${RCLONE_RCD_PASS:-change_me}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
   backend:
+    depends_on:
+      rclone:
+        condition: service_healthy
     build:
       context: .
       dockerfile: Dockerfile.backend
@@ -40,10 +50,12 @@ services:
       PORT: 43107
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: ${DATABASE_URL:-mysql://${MYSQL_USER:-everdrive}:${MYSQL_PASSWORD:-everdrive_pass}@mysql:3306/${MYSQL_DATABASE:-everdrive}}
-      RCLONE_RCD_URL: ${RCLONE_RCD_URL:-http://rclone:5572}
+      RCLONE_RCD_URL: ${DOCKER_RCLONE_RCD_URL:-http://rclone:5572}
       RCLONE_RCD_USER: ${RCLONE_RCD_USER:-admin}
       RCLONE_RCD_PASS: ${RCLONE_RCD_PASS:-change_me}
       ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:-change_me_to_a_long_random_secret}
+      LOCAL_PATH_ALLOWED_ROOTS: ${DOCKER_LOCAL_PATH_ALLOWED_ROOTS:-/data}
+      TMPDIR: /var/lib/everdrive/tmp
       RCLONE_HTTP_TIMEOUT_MS: ${RCLONE_HTTP_TIMEOUT_MS:-5000}
       RCLONE_RETRY_ATTEMPTS: ${RCLONE_RETRY_ATTEMPTS:-2}
       RCLONE_RETRY_DELAY_MS: ${RCLONE_RETRY_DELAY_MS:-250}
@@ -57,7 +69,15 @@ services:
       DB_MIGRATE_MAX_RETRIES: ${DB_MIGRATE_MAX_RETRIES:-30}
       DB_MIGRATE_RETRY_DELAY_SECONDS: ${DB_MIGRATE_RETRY_DELAY_SECONDS:-2}
     ports:
-      - "${BACKEND_PORT:-43107}:43107"
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-43107}:43107"
+    volumes:
+      - "${DATA_ROOT:-./data}:/data:ro"
+      - everdrive_tmp:/var/lib/everdrive/tmp
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:43107/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
   frontend:
@@ -67,11 +87,18 @@ services:
       args:
         VITE_DEFAULT_API_MODE: ${VITE_DEFAULT_API_MODE:-live}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "${FRONTEND_PORT:-43117}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
 volumes:
   mysql_data:
   rclone_config:
+  everdrive_tmp:
