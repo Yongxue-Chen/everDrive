@@ -311,3 +311,21 @@ export type UpdateSettingsPayload = {
     maxDeleteBatchPerRun?: number;
   };
 };
+
+export type RcloneConfigValue = string | number | boolean;
+export type RcloneProviderOption = {
+  Name: string;
+  Help?: string;
+  Required?: boolean;
+  IsPassword?: boolean;
+  Sensitive?: boolean;
+  Advanced?: boolean;
+  DefaultStr?: string;
+  Type?: string;
+  Examples?: Array<{ Value: string; Help?: string }>;
+  Hide?: number;
+};
+export type RcloneProvider = { Name: string; Prefix: string; Description: string; Options: RcloneProviderOption[]; Hide?: boolean };
+export type RcloneConfigRemoteSummary = { name: string; boundRemoteId: string | null; boundDisplayName: string | null };
+export type RcloneConfigRemote = { name: string; type: string; parameters: Record<string, unknown>; sensitiveFields: string[] };
+export type RcloneConfigMutationPayload = { name: string; type: string; parameters: Record<string, RcloneConfigValue> };

@@ -99,6 +99,24 @@ type RcloneRpcResponseBody = {
   [key: string]: unknown;
 };
 
+export type RcloneConfigValue = string | number | boolean;
+export type RcloneConfigParameters = Record<string, RcloneConfigValue>;
+export type RcloneConfigMutationInput = {
+  name: string;
+  type?: string;
+  parameters: RcloneConfigParameters;
+};
+
+export interface IRcloneConfigClient {
+  listRemotes(): Promise<string[]>;
+  getConfigProviders(): Promise<RcloneConfigProviders>;
+  getRemoteConfig(name: string): Promise<Record<string, unknown>>;
+  createRemoteConfig(input: RcloneConfigMutationInput & { type: string }): Promise<Record<string, unknown>>;
+  updateRemoteConfig(input: RcloneConfigMutationInput): Promise<Record<string, unknown>>;
+  deleteRemoteConfig(name: string): Promise<void>;
+  testRemote(name: string): Promise<boolean>;
+}
+
 export interface IRcloneClient {
   checkOnline(): Promise<boolean>;
   listRemotes(): Promise<string[]>;
@@ -198,6 +216,41 @@ export class RcloneClient implements IRcloneClient {
 
   async getConfigProviders(): Promise<RcloneConfigProviders> {
     return this.post<RcloneConfigProviders>('config/providers', {});
+  }
+
+  async getRemoteConfig(name: string): Promise<Record<string, unknown>> {
+    return this.post<Record<string, unknown>>('config/get', { name });
+  }
+
+  async createRemoteConfig(input: RcloneConfigMutationInput & { type: string }): Promise<Record<string, unknown>> {
+    return this.post<Record<string, unknown>>('config/create', {
+      name: input.name,
+      type: input.type,
+      parameters: input.parameters,
+      opt: { nonInteractive: true, obscure: true }
+    });
+  }
+
+  async updateRemoteConfig(input: RcloneConfigMutationInput): Promise<Record<string, unknown>> {
+    return this.post<Record<string, unknown>>('config/update', {
+      name: input.name,
+      parameters: input.parameters,
+      opt: { nonInteractive: true, obscure: true }
+    });
+  }
+
+  async deleteRemoteConfig(name: string): Promise<void> {
+    await this.post<Record<string, unknown>>('config/delete', { name });
+  }
+
+  async testRemote(name: string): Promise<boolean> {
+    await this.post<Record<string, unknown>>('operations/list', {
+      fs: `${name}:`,
+      remote: '',
+      opt: { maxDepth: 1 },
+      _config: { MaxDepth: 1 }
+    });
+    return true;
   }
 
   async copy(input: TransferOperationInput): Promise<RcloneOperationResult> {

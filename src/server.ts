@@ -22,6 +22,8 @@ import { MigrationService } from './modules/migration/migration.service.js';
 import { CloudInventoryRepository } from './modules/remote/cloud-inventory.repository.js';
 import { CloudInventoryService } from './modules/remote/cloud-inventory.service.js';
 import { createRemoteRouter } from './modules/remote/remote.controller.js';
+import { createRcloneConfigRouter } from './modules/rclone-config/rclone-config.controller.js';
+import { RcloneConfigService } from './modules/rclone-config/rclone-config.service.js';
 import { createRenameDetectRouter } from './modules/rename-detect/rename-detect.controller.js';
 import { RenameDetectRepository } from './modules/rename-detect/rename-detect.repository.js';
 import { RenameDetectService } from './modules/rename-detect/rename-detect.service.js';
@@ -59,6 +61,12 @@ async function bootstrap(): Promise<void> {
     remoteConcurrencyLimit: env.JOB_REMOTE_CONCURRENCY_LIMIT
   });
   const cloudInventoryRepository = new CloudInventoryRepository(database.prisma);
+  const rcloneConfigService = new RcloneConfigService(
+    rcloneClient,
+    async (remoteName) => cloudInventoryRepository.getRemoteByBoundRemoteName(remoteName),
+    async () => cloudInventoryRepository.listRemotes()
+  );
+  const rcloneConfigRouter = createRcloneConfigRouter(rcloneConfigService, auditService);
   const cloudInventoryService = new CloudInventoryService(cloudInventoryRepository, rcloneClient);
   const remoteRouter = createRemoteRouter(cloudInventoryService, jobQueue, auditService);
   const mappingTaskRepository = new MappingTaskPrismaRepository(database.prisma);
@@ -199,6 +207,7 @@ async function bootstrap(): Promise<void> {
     checkDb: () => database.isHealthy(),
     checkRclone: () => rcloneClient.checkOnline(),
     remoteRouter,
+    rcloneConfigRouter,
     mappingTaskRouter,
     scanRouter,
     renameDetectRouter,

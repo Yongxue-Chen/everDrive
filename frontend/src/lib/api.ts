@@ -469,3 +469,25 @@ export async function updateSettings(payload: UpdateSettingsPayload): Promise<Se
   }
   return (await response.json()) as SettingsResponse;
 }
+
+export async function listRcloneProviders(): Promise<{ providers: import('./types.js').RcloneProvider[] }> {
+  return requestJson('/api/rclone-config/providers');
+}
+export async function listRcloneConfigRemotes(): Promise<{ items: import('./types.js').RcloneConfigRemoteSummary[] }> {
+  return requestJson('/api/rclone-config/remotes');
+}
+export async function getRcloneRemote(name: string): Promise<{ item: import('./types.js').RcloneConfigRemote }> {
+  return requestJson(`/api/rclone-config/remotes/${encodeURIComponent(name)}`);
+}
+export async function createRcloneRemote(payload: import('./types.js').RcloneConfigMutationPayload): Promise<{ item: import('./types.js').RcloneConfigRemote }> {
+  return requestJsonWithBody('/api/rclone-config/remotes', 'POST', payload);
+}
+export async function updateRcloneRemote(name: string, parameters: Record<string, import('./types.js').RcloneConfigValue>): Promise<{ item: import('./types.js').RcloneConfigRemote }> {
+  return requestJsonWithBody(`/api/rclone-config/remotes/${encodeURIComponent(name)}`, 'PATCH', { parameters });
+}
+export async function deleteRcloneRemote(name: string): Promise<{ deleted: true }> {
+  return requestJsonWithBody(`/api/rclone-config/remotes/${encodeURIComponent(name)}`, 'DELETE');
+}
+export async function testRcloneRemote(name: string): Promise<{ online: true }> {
+  return requestJsonWithBody(`/api/rclone-config/remotes/${encodeURIComponent(name)}/test`, 'POST');
+}

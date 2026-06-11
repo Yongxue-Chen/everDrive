@@ -279,4 +279,38 @@ describe('RcloneClient', () => {
       })
     );
   });
+
+  it('manages remote configuration through fixed config endpoints', async () => {
+    const fetchMock = vi.fn(async () => createJsonResponse(200, { type: 'memory' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new RcloneClient({ baseUrl: 'http://127.0.0.1:5572', user: 'everdrive', pass: '123456' });
+
+    await client.getRemoteConfig('demo');
+    await client.createRemoteConfig({ name: 'demo', type: 'memory', parameters: { description: 'test' } });
+    await client.updateRemoteConfig({ name: 'demo', parameters: { description: 'updated' } });
+    await client.deleteRemoteConfig('demo');
+
+    const calls = fetchMock.mock.calls.map((call) => (call as unknown as [string, RequestInit])[0]);
+    expect(calls).toEqual([
+      'http://127.0.0.1:5572/config/get',
+      'http://127.0.0.1:5572/config/create',
+      'http://127.0.0.1:5572/config/update',
+      'http://127.0.0.1:5572/config/delete'
+    ]);
+    const createCall = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    const createBody = JSON.parse(String(createCall[1].body));
+    expect(createBody).toEqual({ name: 'demo', type: 'memory', parameters: { description: 'test' }, opt: { nonInteractive: true, obscure: true } });
+  });
+
+  it('tests remote connectivity with a one-item root listing', async () => {
+    const fetchMock = vi.fn(async () => createJsonResponse(200, { list: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new RcloneClient({ baseUrl: 'http://127.0.0.1:5572', user: 'everdrive', pass: '123456' });
+
+    await expect(client.testRemote('demo')).resolves.toBe(true);
+    const testCall = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(testCall[1].body));
+    expect(body).toEqual({ fs: 'demo:', remote: '', opt: { maxDepth: 1 }, _config: { MaxDepth: 1 } });
+  });
+
 });

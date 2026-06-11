@@ -9,6 +9,7 @@ type CreateAppDeps = {
   checkDb: () => Promise<boolean>;
   checkRclone: () => Promise<boolean>;
   remoteRouter?: Router;
+  rcloneConfigRouter?: Router;
   mappingTaskRouter?: Router;
   scanRouter?: Router;
   renameDetectRouter?: Router;
@@ -39,6 +40,7 @@ export function createApp(deps: CreateAppDeps) {
   });
 
   app.use(createHealthRouter(deps));
+  app.use(deps.rcloneConfigRouter ?? express.Router());
   app.use(deps.remoteRouter ?? express.Router());
   app.use(deps.mappingTaskRouter ?? express.Router());
   app.use(deps.scanRouter ?? express.Router());

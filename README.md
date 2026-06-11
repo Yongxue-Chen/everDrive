@@ -346,6 +346,10 @@ cp .env.example .env
 docker compose up -d rclone
 ```
 
+### Web rclone 配置中心
+
+启动后可从侧边栏进入“rclone 配置”，查看 provider、创建/编辑 remote、测试连接和删除未绑定的 remote。配置中心只调用固定的 rclone RC 白名单，不提供任意命令行。需要浏览器交互授权的 OAuth 云盘仍应在容器中执行 `docker compose exec rclone rclone config`，完成后回到页面刷新。
+
 ### 3. 在 Docker rclone 容器里配置 remote
 
 Docker Compose 使用名为 `rclone_config` 的数据卷保存 rclone 配置。首次启动后需要进入 rclone 容器配置 remote：

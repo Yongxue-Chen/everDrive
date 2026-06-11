@@ -4,6 +4,7 @@ const links = [
   { to: '/dashboard', label: '工作空间' },
   { to: '/mapping-tasks', label: '映射任务' },
   { to: '/cloud-remotes', label: '云盘列表' },
+  { to: '/rclone-config', label: 'rclone 配置' },
   { to: '/settings', label: '设置' }
 ];
 

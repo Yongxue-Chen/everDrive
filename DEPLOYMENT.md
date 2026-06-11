@@ -219,7 +219,11 @@ export RCLONE_RCD_PASS='ChangeThisRclonePass'
 docker compose up -d backend frontend
 ```
 
-## 3.4 常用命令
+## 3.4 Web rclone 配置中心
+
+侧边栏“rclone 配置”页面支持 provider 元数据驱动的配置表单、remote 创建/编辑、连接测试和删除。已被 everDrive 业务云盘绑定的 rclone remote 不允许删除。OAuth 交互授权仍通过 `docker compose exec rclone rclone config` 完成。后端不会接受浏览器传入的任意 rclone RC 方法名。
+
+## 3.5 常用命令
 ```bash
 # 查看日志
 docker compose logs -f
@@ -234,7 +238,7 @@ docker compose down
 docker compose down -v
 ```
 
-## 3.5 飞牛 fnOS / Portainer 部署
+## 3.6 飞牛 fnOS / Portainer 部署
 
 飞牛设备只需要安装 Docker，推荐通过 Docker Compose 或 Portainer Stack 部署：
 
