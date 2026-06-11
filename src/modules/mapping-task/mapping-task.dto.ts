@@ -11,7 +11,7 @@ const mappingRemoteBindingSchema = z.object({
 
 export const CreateMappingTaskSchema = z.object({
   name: z.string().min(1),
-  localPath: z.string().min(1).default('/'),
+  localPath: z.string().optional(),
   sourceType: z.enum(['local','rclone']).default('local'),
   sourceRemoteName: z.string().max(128).nullable().optional(),
   sourcePath: z.string().max(512).optional(),
@@ -26,7 +26,7 @@ export const CreateMappingTaskSchema = z.object({
 export const UpdateMappingTaskSchema = z
   .object({
     name: z.string().min(1).optional(),
-    localPath: z.string().min(1).optional(),
+    localPath: z.string().optional(),
     sourceType: z.enum(['local','rclone']).optional(),
     sourceRemoteName: z.string().max(128).nullable().optional(),
     sourcePath: z.string().max(512).optional(),

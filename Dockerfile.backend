@@ -14,10 +14,11 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/dist ./dist
 COPY docker/backend-entrypoint.sh ./docker/backend-entrypoint.sh
 RUN chmod +x ./docker/backend-entrypoint.sh
+RUN node --input-type=module -e "await import('./dist/src/modules/mapping-task/mapping-task.repository.js')"
 EXPOSE 43107
 CMD ["./docker/backend-entrypoint.sh"]

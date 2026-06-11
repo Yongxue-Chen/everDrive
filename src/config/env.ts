@@ -20,7 +20,7 @@ const EnvSchema = z.object({
   LOCAL_PATH_ALLOWED_ROOTS: z.string().default('/'),
 
   SCAN_BATCH_SIZE: z.coerce.number().int().positive().default(1000),
-  SCAN_INTERVAL_SECONDS: z.coerce.number().int().positive().default(30),
+  SCAN_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
   REMOTE_HEALTHCHECK_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
 
   SYNC_CONCURRENCY: z.coerce.number().int().positive().default(4),

@@ -24,6 +24,7 @@ import { CloudInventoryService } from './modules/remote/cloud-inventory.service.
 import { createRemoteRouter } from './modules/remote/remote.controller.js';
 import { createRcloneConfigRouter } from './modules/rclone-config/rclone-config.controller.js';
 import { RcloneConfigService } from './modules/rclone-config/rclone-config.service.js';
+import { RcloneRemoteMetadataRepository } from './modules/rclone-config/rclone-remote-metadata.repository.js';
 import { createRenameDetectRouter } from './modules/rename-detect/rename-detect.controller.js';
 import { RenameDetectRepository } from './modules/rename-detect/rename-detect.repository.js';
 import { RenameDetectService } from './modules/rename-detect/rename-detect.service.js';
@@ -63,6 +64,7 @@ async function bootstrap(): Promise<void> {
     remoteConcurrencyLimit: env.JOB_REMOTE_CONCURRENCY_LIMIT
   });
   const cloudInventoryRepository = new CloudInventoryRepository(database.prisma);
+  const rcloneRemoteMetadataRepository = new RcloneRemoteMetadataRepository(database.prisma);
   const rcloneConfigService = new RcloneConfigService(
     rcloneClient,
     async (remoteName) => {
@@ -71,7 +73,8 @@ async function bootstrap(): Promise<void> {
       const sourceTask = await database.prisma.mappingTask.findFirst({ where: { sourceType: 'rclone', sourceRemoteName: remoteName, deletedAt: null }, select: { id: true, name: true } });
       return sourceTask ? { id: sourceTask.id, displayName: `source mapping ` } : null;
     },
-    async () => cloudInventoryRepository.listRemotes()
+    async () => cloudInventoryRepository.listRemotes(),
+    rcloneRemoteMetadataRepository
   );
   const rcloneConfigRouter = createRcloneConfigRouter(rcloneConfigService, auditService);
   const cloudInventoryService = new CloudInventoryService(cloudInventoryRepository, rcloneClient);

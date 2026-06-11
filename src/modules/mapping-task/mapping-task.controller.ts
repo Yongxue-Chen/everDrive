@@ -26,7 +26,7 @@ export function createMappingTaskRouter(service: MappingTaskService, queue: JobQ
 
       const item = await service.createTask({
         name: body.name,
-        localPath: body.localPath,
+        localPath: body.localPath ?? '',
         sourceType: body.sourceType,
         sourceRemoteName: body.sourceRemoteName,
         sourcePath: body.sourcePath,

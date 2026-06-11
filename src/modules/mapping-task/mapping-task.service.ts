@@ -278,7 +278,7 @@ export class MappingTaskService {
     const sourceType = input.sourceType ?? 'local';
     if (sourceType === 'rclone') {
       const remoteName = input.sourceRemoteName?.trim();
-      if (!remoteName || !/^[A-Za-z0-9][A-Za-z0-9._ -]*$/.test(remoteName)) {
+      if (!remoteName || !/^[^:\x00-\x1F\x7F]+$/.test(remoteName)) {
         throw new AppError({ code: 'BAD_REQUEST', message: 'sourceRemoteName is required for rclone sources', statusCode: 400 });
       }
       const sourcePath = this.normalizeRemoteBasePath(input.sourcePath);

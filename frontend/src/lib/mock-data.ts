@@ -167,7 +167,7 @@ export const mockSettings: SettingsResponse = {
         retryAttempts: 2,
         retryDelayMs: 250
       },
-      defaultScanIntervalSeconds: 30,
+      defaultScanIntervalSeconds: 300,
       defaultConcurrency: {
         sync: 4,
         rclone: 4,

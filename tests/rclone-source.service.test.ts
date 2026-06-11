@@ -17,6 +17,14 @@ describe('RcloneSourceService', () => {
     await expect(service.scan('lan-smb','')).resolves.toEqual([{relativePath:'photos/a.jpg',sizeBytes:12n,modifiedTime:new Date('2026-01-02T00:00:00Z'),md5:'abc',sha1:null}]);
   });
 
+  it('strips sourcePath prefix from scanned relative paths', async () => {
+    const client = { getRemoteConfig: vi.fn(async()=>({type:'smb'})), listEntries: vi.fn(async()=>[
+      { Path:'photos/a.jpg', Name:'a.jpg', IsDir:false, Size:12, ModTime:'2026-01-02T00:00:00Z', Hashes:{MD5:'abc'} }
+    ]) };
+    const service = new RcloneSourceService(client as any);
+    await expect(service.scan('lan-smb','photos')).resolves.toEqual([{relativePath:'a.jpg',sizeBytes:12n,modifiedTime:new Date('2026-01-02T00:00:00Z'),md5:'abc',sha1:null}]);
+  });
+
   it('rejects non-SMB/SFTP source remotes', async () => {
     const service = new RcloneSourceService({getRemoteConfig:vi.fn(async()=>({type:'drive'}))} as any);
     await expect(service.scan('gdrive','')).rejects.toMatchObject({code:'BAD_REQUEST'});

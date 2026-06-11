@@ -494,7 +494,9 @@ export async function updateRcloneRemote(name: string, parameters: Record<string
 export async function deleteRcloneRemote(name: string): Promise<{ deleted: true }> {
   return requestJsonWithBody(`/api/rclone-config/remotes/${encodeURIComponent(name)}`, 'DELETE');
 }
-export async function testRcloneRemote(name: string): Promise<{ online: true }> {
+export async function updateRcloneRemoteWebUrl(name: string, webUrl: string | null): Promise<{ webUrl: string | null }> { return requestJsonWithBody(`/api/rclone-config/remotes/${encodeURIComponent(name)}/metadata`, 'PATCH', { webUrl }); }
+export async function runRcloneConfigFlow(payload: import('./types.js').RcloneConfigFlowPayload): Promise<{ item: Record<string, unknown> }> { return requestJsonWithBody('/api/rclone-config/flow', 'POST', payload); }
+export async function testRcloneRemote(name: string): Promise<{ online: boolean; error?: string }> {
   return requestJsonWithBody(`/api/rclone-config/remotes/${encodeURIComponent(name)}/test`, 'POST');
 }
 

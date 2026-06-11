@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../../middlewares/async-handler.js';
 import { parseOrBadRequest } from '../../lib/request-parser.js';
 import { AuditService } from '../audit/audit.service.js';
-import { CreateRcloneRemoteSchema, UpdateRcloneRemoteSchema, parseRcloneRemoteName } from './rclone-config.dto.js';
+import { CreateRcloneRemoteSchema, RcloneConfigFlowSchema, UpdateRcloneRemoteMetadataSchema, UpdateRcloneRemoteSchema, parseRcloneRemoteName } from './rclone-config.dto.js';
 import { RcloneConfigService } from './rclone-config.service.js';
 
 export function createRcloneConfigRouter(service: RcloneConfigService, auditService?: AuditService): Router {
@@ -30,6 +30,8 @@ export function createRcloneConfigRouter(service: RcloneConfigService, auditServ
     await auditService?.write({ operationType: 'delete', targetType: 'remote', message: `rclone remote deleted: ${name}`, metadataJson: { remoteName: name } });
     res.json({ deleted: true });
   }));
+  router.patch('/api/rclone-config/remotes/:name/metadata', asyncHandler(async (req, res) => { const name = parseRcloneRemoteName(req.params.name); const body = parseOrBadRequest(UpdateRcloneRemoteMetadataSchema, req.body); res.json(await service.setWebUrl(name, body.webUrl)); }));
+  router.post('/api/rclone-config/flow', asyncHandler(async (req, res) => { const body = parseOrBadRequest(RcloneConfigFlowSchema, req.body); res.json({ item: await service.runConfigFlow(body) }); }));
   router.post('/api/rclone-config/remotes/:name/test', asyncHandler(async (req, res) => { res.json(await service.testRemote(parseRcloneRemoteName(req.params.name))); }));
 
   return router;

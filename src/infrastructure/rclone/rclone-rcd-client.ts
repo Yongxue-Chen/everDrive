@@ -109,6 +109,12 @@ export type RcloneConfigMutationInput = {
   parameters: RcloneConfigParameters;
 };
 
+export type RcloneConfigFlowInput = RcloneConfigMutationInput & {
+  action: 'create' | 'update';
+  state?: string;
+  result?: string;
+};
+
 export interface IRcloneConfigClient {
   listRemotes(): Promise<string[]>;
   getConfigProviders(): Promise<RcloneConfigProviders>;
@@ -117,6 +123,7 @@ export interface IRcloneConfigClient {
   updateRemoteConfig(input: RcloneConfigMutationInput): Promise<Record<string, unknown>>;
   deleteRemoteConfig(name: string): Promise<void>;
   testRemote(name: string): Promise<boolean>;
+  runConfigFlow(input: RcloneConfigFlowInput): Promise<Record<string, unknown>>;
 }
 
 export interface IRcloneClient {
@@ -248,6 +255,10 @@ export class RcloneClient implements IRcloneClient {
     });
   }
 
+  async runConfigFlow(input: RcloneConfigFlowInput): Promise<Record<string, unknown>> {
+    return this.post<Record<string, unknown>>(`config/${input.action}`, { name: input.name, ...(input.type ? { type: input.type } : {}), parameters: input.parameters, opt: { nonInteractive: true, obscure: true, all: true, ...(input.state !== undefined ? { continue: true, state: input.state, result: input.result ?? '' } : {}) } });
+  }
+
   async deleteRemoteConfig(name: string): Promise<void> {
     await this.post<Record<string, unknown>>('config/delete', { name });
   }
@@ -258,7 +269,7 @@ export class RcloneClient implements IRcloneClient {
       remote: '',
       opt: { maxDepth: 1 },
       _config: { MaxDepth: 1 }
-    });
+    }, { timeoutMs: 5000, retryAttempts: 0 });
     return true;
   }
 
@@ -359,12 +370,14 @@ export class RcloneClient implements IRcloneClient {
     };
   }
 
-  private async post<TResult extends Record<string, unknown>>(method: string, body: Record<string, unknown>): Promise<TResult> {
+  private async post<TResult extends Record<string, unknown>>(method: string, body: Record<string, unknown>, options?: { timeoutMs?: number; retryAttempts?: number }): Promise<TResult> {
     const startedAt = Date.now();
+    const timeoutMs = options?.timeoutMs ?? this.timeoutMs;
+    const retryAttempts = options?.retryAttempts ?? this.retryAttempts;
 
-    for (let attempt = 0; attempt <= this.retryAttempts; attempt++) {
+    for (let attempt = 0; attempt <= retryAttempts; attempt++) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
         this.log.debug('rclone request', { method, attempt, body });
@@ -394,7 +407,7 @@ export class RcloneClient implements IRcloneClient {
             responseBody: error.responseBody
           });
 
-          if (attempt < this.retryAttempts && this.shouldRetry(error)) {
+          if (attempt < retryAttempts && this.shouldRetry(error)) {
             await sleep(this.retryDelayMs);
             continue;
           }
@@ -416,7 +429,7 @@ export class RcloneClient implements IRcloneClient {
           err: error
         });
 
-        if (attempt < this.retryAttempts && this.shouldRetry(mapped)) {
+        if (attempt < retryAttempts && this.shouldRetry(mapped)) {
           await sleep(this.retryDelayMs);
           continue;
         }

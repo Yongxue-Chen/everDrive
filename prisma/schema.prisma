@@ -118,20 +118,20 @@ model File {
 }
 
 model MappingTask {
-  id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
-  name              String   @db.VarChar(128)
-  localPath         String   @map("local_path") @db.VarChar(512)
-  syncMode          SyncMode @map("sync_mode")
-  encryptionEnabled Boolean  @default(false) @map("encryption_enabled")
-  sourceType          SourceType @default(local) @map("source_type")
-  sourceRemoteName    String? @map("source_remote_name") @db.VarChar(128)
-  sourcePath          String @default("") @map("source_path") @db.VarChar(512)
-  redundancyEnabled Boolean  @default(false) @map("redundancy_enabled")
-  splitEnabled      Boolean  @default(false) @map("split_enabled")
-  isActive          Boolean  @default(true) @map("is_active")
-  deletedAt         DateTime? @map("deleted_at") @db.DateTime(3)
-  createdAt         DateTime @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  id                BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  name              String     @db.VarChar(128)
+  localPath         String     @map("local_path") @db.VarChar(512)
+  syncMode          SyncMode   @map("sync_mode")
+  encryptionEnabled Boolean    @default(false) @map("encryption_enabled")
+  sourceType        SourceType @default(local) @map("source_type")
+  sourceRemoteName  String?    @map("source_remote_name") @db.VarChar(128)
+  sourcePath        String     @default("") @map("source_path") @db.VarChar(512)
+  redundancyEnabled Boolean    @default(false) @map("redundancy_enabled")
+  splitEnabled      Boolean    @default(false) @map("split_enabled")
+  isActive          Boolean    @default(true) @map("is_active")
+  deletedAt         DateTime?  @map("deleted_at") @db.DateTime(3)
+  createdAt         DateTime   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.DateTime(3)
 
   files              File[]
   mappingTaskRemotes MappingTaskRemote[]
@@ -146,23 +146,23 @@ model MappingTask {
 }
 
 model CloudRemote {
-  id               BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
-  remoteName       String       @map("remote_name") @db.VarChar(128)
-  displayName      String       @map("display_name") @db.VarChar(128)
-  remoteRootPath   String       @default("") @map("remote_root_path") @db.VarChar(512)
-  cloudTrashEnabled Boolean     @default(false) @map("cloud_trash_enabled")
-  cloudTrashBasePath String     @default(".everdrive-trash") @map("cloud_trash_base_path") @db.VarChar(512)
-  totalCapacity    BigInt       @default(0) @map("total_capacity") @db.UnsignedBigInt
-  usedCapacity     BigInt       @default(0) @map("used_capacity") @db.UnsignedBigInt
-  reservedCapacity BigInt       @default(0) @map("reserved_capacity") @db.UnsignedBigInt
-  warningThresholdPercent Int   @default(85) @map("warning_threshold_percent") @db.UnsignedTinyInt
-  healthStatus     HealthStatus @default(healthy) @map("health_status")
-  isActive         Boolean      @default(true) @map("is_active")
-  lastCheckedAt    DateTime?    @map("last_checked_at") @db.DateTime(3)
-  lastAlertAt      DateTime?    @map("last_alert_at") @db.DateTime(3)
-  lastSyncAt       DateTime?    @map("last_sync_at") @db.DateTime(3)
-  createdAt        DateTime     @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt        DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
+  id                      BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  remoteName              String       @map("remote_name") @db.VarChar(128)
+  displayName             String       @map("display_name") @db.VarChar(128)
+  remoteRootPath          String       @default("") @map("remote_root_path") @db.VarChar(512)
+  cloudTrashEnabled       Boolean      @default(false) @map("cloud_trash_enabled")
+  cloudTrashBasePath      String       @default(".everdrive-trash") @map("cloud_trash_base_path") @db.VarChar(512)
+  totalCapacity           BigInt       @default(0) @map("total_capacity") @db.UnsignedBigInt
+  usedCapacity            BigInt       @default(0) @map("used_capacity") @db.UnsignedBigInt
+  reservedCapacity        BigInt       @default(0) @map("reserved_capacity") @db.UnsignedBigInt
+  warningThresholdPercent Int          @default(85) @map("warning_threshold_percent") @db.UnsignedTinyInt
+  healthStatus            HealthStatus @default(healthy) @map("health_status")
+  isActive                Boolean      @default(true) @map("is_active")
+  lastCheckedAt           DateTime?    @map("last_checked_at") @db.DateTime(3)
+  lastAlertAt             DateTime?    @map("last_alert_at") @db.DateTime(3)
+  lastSyncAt              DateTime?    @map("last_sync_at") @db.DateTime(3)
+  createdAt               DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt               DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
 
   mappingTaskRemotes MappingTaskRemote[]
   fileLocations      FileLocation[]
@@ -178,13 +178,13 @@ model CloudRemote {
 }
 
 model MappingTaskRemote {
-  id            BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
-  mappingTaskId BigInt            @map("mapping_task_id") @db.UnsignedBigInt
-  remoteId      BigInt            @map("remote_id") @db.UnsignedBigInt
-  role          MappingRemoteRole
-  priority      Int               @default(100) @db.UnsignedInt
-  remoteBasePath String           @default("") @map("remote_base_path") @db.VarChar(512)
-  createdAt     DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  id             BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  mappingTaskId  BigInt            @map("mapping_task_id") @db.UnsignedBigInt
+  remoteId       BigInt            @map("remote_id") @db.UnsignedBigInt
+  role           MappingRemoteRole
+  priority       Int               @default(100) @db.UnsignedInt
+  remoteBasePath String            @default("") @map("remote_base_path") @db.VarChar(512)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.DateTime(3)
 
   mappingTask MappingTask @relation(fields: [mappingTaskId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   remote      CloudRemote @relation(fields: [remoteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -248,4 +248,13 @@ model OperationLog {
   @@index([targetType, targetId, createdAt], map: "idx_operation_logs_target")
   @@index([operationType, createdAt], map: "idx_operation_logs_op")
   @@map("operation_logs")
+}
+
+model RcloneRemoteMetadata {
+  remoteName String   @id @map("remote_name") @db.VarChar(128)
+  webUrl     String?  @map("web_url") @db.VarChar(2048)
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("rclone_remote_metadata")
 }

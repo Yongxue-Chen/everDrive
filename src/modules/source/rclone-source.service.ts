@@ -47,8 +47,18 @@ export class RcloneSourceService {
 
   async scan(remoteName: string, sourcePath = ''): Promise<RemoteSourceFile[]> {
     await this.ensureAllowed(remoteName);
-    const rows = await this.requireListEntries()(`${remoteName}:`, this.normalizePath(sourcePath), true);
-    return rows.filter((item) => !item.IsDir).map((item) => this.toFile(item));
+    const normalizedPath = this.normalizePath(sourcePath);
+    const rows = await this.requireListEntries()(`${remoteName}:`, normalizedPath, true);
+    return rows.filter((item) => !item.IsDir).map((item) => {
+      const file = this.toFile(item);
+      if (normalizedPath) {
+        const prefix = normalizedPath.endsWith('/') ? normalizedPath : normalizedPath + '/';
+        if (file.relativePath.startsWith(prefix)) {
+          file.relativePath = file.relativePath.slice(prefix.length);
+        }
+      }
+      return file;
+    });
   }
 
   async test(remoteName: string, sourcePath = ''): Promise<{ online: true }> {

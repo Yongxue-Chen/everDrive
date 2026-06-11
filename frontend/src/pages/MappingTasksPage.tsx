@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { LocalPathPicker } from '../components/LocalPathPicker';
+import { RcloneSourcePathPicker } from '../components/RcloneSourcePathPicker';
 import { MappingTable } from '../components/MappingTable';
 import {
   createMappingTask,
@@ -8,7 +10,6 @@ import {
   fetchCloudRemotes,
   fetchMappingTasks,
   listRcloneSources,
-  browseRcloneSource,
   testRcloneSource,
   getApiMode,
   runMappingTaskSync,
@@ -77,6 +78,7 @@ export function MappingTasksPage() {
   const [editingItem, setEditingItem] = useState<MappingTaskItem | null>(null);
   const [form, setForm] = useState<MappingFormState>(createEmptyForm());
   const [isPathPickerOpen, setIsPathPickerOpen] = useState(false);
+  const [isRclonePathPickerOpen, setIsRclonePathPickerOpen] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [runSyncNotice, setRunSyncNotice] = useState<string | null>(null);
   const query = useQuery({
@@ -85,7 +87,6 @@ export function MappingTasksPage() {
     refetchInterval: 10000
   });
   const sourcesQuery = useQuery({ queryKey: ['rclone-sources'], queryFn: listRcloneSources });
-  const sourceBrowseQuery = useQuery({ queryKey: ['rclone-source-browse', form.sourceRemoteName, form.sourcePath], queryFn: () => browseRcloneSource(form.sourceRemoteName, form.sourcePath), enabled: form.sourceType === 'rclone' && Boolean(form.sourceRemoteName) });
   const sourceTestMutation = useMutation({ mutationFn: () => testRcloneSource(form.sourceRemoteName, form.sourcePath) });
   const remotesQuery = useQuery({
     queryKey: ['cloud-remotes'],
@@ -269,8 +270,14 @@ export function MappingTasksPage() {
             </label>
             {form.sourceType === 'local' ? <label>本地路径<div className="path-input"><input value={form.localPath} readOnly placeholder="请选择服务器目录" /><button onClick={() => setIsPathPickerOpen(true)}>选择目录</button></div></label> : <>
               <label>来源 remote<select value={form.sourceRemoteName} onChange={(e) => setForm((prev) => ({ ...prev, sourceRemoteName: e.target.value, sourcePath: '' }))}><option value="">请选择 SMB/SFTP remote</option>{sourcesQuery.data?.items.map((item) => <option key={item.name} value={item.name}>{item.name} ({item.type})</option>)}</select></label>
-              <label>来源目录<input value={form.sourcePath} onChange={(e) => setForm((prev) => ({ ...prev, sourcePath: e.target.value }))} placeholder="例如：photos/2026" /></label>
-              <label>目录浏览<select value="" onChange={(e) => setForm((prev) => ({ ...prev, sourcePath: e.target.value }))}><option value="">选择当前目录下的子目录</option>{sourceBrowseQuery.data?.items.filter((item) => item.isDirectory).map((item) => <option key={item.path} value={item.path}>{item.path}</option>)}</select></label>
+              {!sourcesQuery.isLoading && (sourcesQuery.data?.items.length ?? 0) === 0 ? <div className="panel panel--neutral"><strong>还没有可用的 SMB/SFTP 来源 remote</strong><p className="muted">先在 rclone 配置中新增 SMB/CIFS 或 SFTP remote，测试连接后再返回这里选择。</p><Link className="button-link" to="/rclone-config">前往 rclone 配置</Link></div> : null}
+              <label>
+                来源目录
+                <div className="path-input">
+                  <input value={form.sourcePath} onChange={(e) => setForm((prev) => ({ ...prev, sourcePath: e.target.value }))} placeholder="请输入或选择来源目录" />
+                  <button onClick={() => setIsRclonePathPickerOpen(true)} disabled={!form.sourceRemoteName}>选择目录</button>
+                </div>
+              </label>
               <div className="panel panel--warning"><strong>来源严格只读</strong><p className="muted">archive 和 mirror 都不会修改 SMB/SFTP 来源；mirror 仅影响目标云盘。</p><button onClick={() => sourceTestMutation.mutate()} disabled={!form.sourceRemoteName || sourceTestMutation.isPending}>测试来源连接</button>{sourceTestMutation.data ? <p>连接正常。</p> : null}{sourceTestMutation.error ? <p className="error">连接失败。</p> : null}</div>
             </>}
             <label>
@@ -456,6 +463,14 @@ export function MappingTasksPage() {
         selectedPath={form.localPath}
         onClose={() => setIsPathPickerOpen(false)}
         onSelect={(path) => setForm((prev) => ({ ...prev, localPath: path }))}
+      />
+
+      <RcloneSourcePathPicker
+        isOpen={isRclonePathPickerOpen}
+        remoteName={form.sourceRemoteName}
+        selectedPath={form.sourcePath}
+        onClose={() => setIsRclonePathPickerOpen(false)}
+        onSelect={(path) => setForm((prev) => ({ ...prev, sourcePath: path }))}
       />
     </div>
   );

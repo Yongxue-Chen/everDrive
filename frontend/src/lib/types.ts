@@ -332,7 +332,8 @@ export type RcloneProviderOption = {
   Hide?: number;
 };
 export type RcloneProvider = { Name: string; Prefix: string; Description: string; Options: RcloneProviderOption[]; Hide?: boolean };
-export type RcloneConfigRemoteSummary = { name: string; boundRemoteId: string | null; boundDisplayName: string | null };
+export type RcloneConfigRemoteSummary = { name: string; boundRemoteId: string | null; boundDisplayName: string | null; webUrl: string | null };
+export type RcloneConfigFlowPayload = { action: 'create' | 'update'; name: string; type?: string; parameters: Record<string, RcloneConfigValue>; state?: string; result?: string };
 export type RcloneConfigRemote = { name: string; type: string; parameters: Record<string, unknown>; sensitiveFields: string[] };
 export type RcloneConfigMutationPayload = { name: string; type: string; parameters: Record<string, RcloneConfigValue> };
 

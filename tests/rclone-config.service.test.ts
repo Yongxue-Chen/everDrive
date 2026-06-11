@@ -11,7 +11,7 @@ function createClient(overrides: Partial<IRcloneConfigClient> = {}): IRcloneConf
   return {
     listRemotes: vi.fn(async () => ['demo']),
     getConfigProviders: vi.fn(async () => ({ providers: [{ Name: 'memory', Description: 'Memory', Prefix: 'memory', Options: [] }] })),
-    getRemoteConfig: vi.fn(async () => ({ type: 's3', access_key_id: 'visible', secret_access_key: 'secret', token: 'oauth-token' })),
+    getRemoteConfig: vi.fn(async () => ({ type: 's3', access_key_id: 'access-id', secret_access_key: 'secret', token: 'oauth-token' })),
     createRemoteConfig: vi.fn(async () => ({})),
     updateRemoteConfig: vi.fn(async () => ({})),
     deleteRemoteConfig: vi.fn(async () => undefined),
@@ -26,8 +26,8 @@ describe('RcloneConfigService', () => {
     await expect(service.getRemote('demo')).resolves.toEqual({
       name: 'demo',
       type: 's3',
-      parameters: { access_key_id: 'visible', secret_access_key: '', token: '' },
-      sensitiveFields: ['secret_access_key', 'token']
+      parameters: { access_key_id: '', secret_access_key: '', token: '' },
+      sensitiveFields: ['access_key_id', 'secret_access_key', 'token']
     });
   });
 
@@ -67,8 +67,8 @@ describe('RcloneConfigService', () => {
     const listBound = vi.fn(async () => [{ id: 8n, remoteName: 'demo', displayName: '主备份盘' }]);
     const service = new RcloneConfigService(createClient({ listRemotes: vi.fn(async () => ['demo', 'archive']) }), lookup, listBound);
     await expect(service.listRemotes()).resolves.toEqual([
-      { name: 'demo', boundRemoteId: '8', boundDisplayName: '主备份盘' },
-      { name: 'archive', boundRemoteId: null, boundDisplayName: null }
+      { name: 'demo', boundRemoteId: '8', boundDisplayName: '主备份盘', webUrl: null },
+      { name: 'archive', boundRemoteId: null, boundDisplayName: null, webUrl: null }
     ]);
     expect(listBound).toHaveBeenCalledOnce();
     expect(lookup).not.toHaveBeenCalled();
@@ -86,6 +86,27 @@ describe('rclone config api', () => {
     await request(app).post('/api/rclone-config/remotes').send({ name: 'demo_2', type: 'memory', parameters: { description: 'test' } }).expect(201);
     await request(app).post('/api/rclone-config/remotes/demo_2/test').expect(200, { online: true });
     expect(client.createRemoteConfig).toHaveBeenCalledWith({ name: 'demo_2', type: 'memory', parameters: { description: 'test' } });
+  });
+
+  it('returns an offline result when a remote connection test fails', async () => {
+    const client = createClient({ testRemote: vi.fn(async () => { throw new Error('connection timed out'); }) });
+    const app = express();
+    app.use(express.json());
+    app.use(createRcloneConfigRouter(new RcloneConfigService(client, async () => null)));
+    app.use(errorHandler);
+
+    await request(app).post('/api/rclone-config/remotes/demo/test').expect(200, { online: false, error: 'connection timed out' });
+  });
+
+  it('accepts unicode remote names', async () => {
+    const client = createClient();
+    const app = express();
+    app.use(express.json());
+    app.use(createRcloneConfigRouter(new RcloneConfigService(client, async () => null)));
+    app.use(errorHandler);
+
+    await request(app).post('/api/rclone-config/remotes').send({ name: '飞牛 SMB', type: 'smb', parameters: { host: '100.64.0.1' } }).expect(201);
+    expect(client.createRemoteConfig).toHaveBeenCalledWith({ name: '飞牛 SMB', type: 'smb', parameters: { host: '100.64.0.1' } });
   });
 
   it('rejects invalid remote names', async () => {
@@ -107,6 +128,17 @@ describe('rclone config api', () => {
       parameters: { account: '', endpoint: 'https://example.test' },
       sensitiveFields: ['account']
     });
+  });
+
+  it('keeps connection identity fields visible even when rclone marks them sensitive', async () => {
+    const client = createClient({
+      getRemoteConfig: vi.fn(async () => ({ type: 'sftp', host: '100.122.105.120', user: 'backup', key_pem: 'private-key' })),
+      getConfigProviders: vi.fn(async () => ({ providers: [{ Prefix: 'sftp', Options: [
+        { Name: 'host', Sensitive: true }, { Name: 'user', Sensitive: true }, { Name: 'key_pem', Sensitive: true }
+      ] }] }))
+    });
+    const service = new RcloneConfigService(client, async () => null);
+    await expect(service.getRemote('demo')).resolves.toMatchObject({ parameters: { host: '100.122.105.120', user: 'backup', key_pem: '' }, sensitiveFields: ['key_pem'] });
   });
 
   it('audits remote configuration mutations without recording parameters', async () => {
