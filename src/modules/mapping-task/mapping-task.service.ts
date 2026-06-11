@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { HealthStatus, MappingRemoteRole, SyncMode } from '@prisma/client';
+import type { HealthStatus, MappingRemoteRole, SyncMode, SourceType } from '@prisma/client';
 import { AppError } from '../../errors/app-error.js';
 
 export type MappingTaskStatus = 'active' | 'inactive' | 'deleted';
@@ -26,6 +26,9 @@ export type MappingTaskRecord = {
   id: bigint;
   name: string;
   localPath: string;
+  sourceType: SourceType;
+  sourceRemoteName: string | null;
+  sourcePath: string;
   syncMode: SyncMode;
   encryptionEnabled: boolean;
   redundancyEnabled: boolean;
@@ -65,6 +68,9 @@ export type MappingRemoteBinding = {
 export type CreateMappingTaskInput = {
   name: string;
   localPath: string;
+  sourceType?: SourceType;
+  sourceRemoteName?: string | null;
+  sourcePath?: string;
   syncMode: SyncMode;
   encryptionEnabled: boolean;
   redundancyEnabled: boolean;
@@ -76,6 +82,9 @@ export type CreateMappingTaskInput = {
 export type UpdateMappingTaskInput = {
   name?: string;
   localPath?: string;
+  sourceType?: SourceType;
+  sourceRemoteName?: string | null;
+  sourcePath?: string;
   syncMode?: SyncMode;
   encryptionEnabled?: boolean;
   redundancyEnabled?: boolean;
@@ -122,6 +131,9 @@ export type MappingTaskView = {
   id: string;
   name: string;
   local_path: string;
+  source_type: SourceType;
+  source_remote_name: string | null;
+  source_path: string;
   remotes: MappingTaskRemoteView[];
   sync_mode: SyncMode;
   encryption_enabled: boolean;
@@ -172,7 +184,14 @@ export class MappingTaskService {
 
   async updateTask(taskId: bigint, input: UpdateMappingTaskInput): Promise<MappingTaskView> {
     const current = await this.getTask(taskId);
-    const normalized = this.normalizeCreateOrUpdateInput(input);
+    const sourceFieldsChanged = input.sourceType !== undefined || input.sourceRemoteName !== undefined || input.sourcePath !== undefined;
+    const normalized = this.normalizeCreateOrUpdateInput(sourceFieldsChanged ? {
+      ...input,
+      sourceType: input.sourceType ?? current.sourceType,
+      sourceRemoteName: input.sourceRemoteName ?? current.sourceRemoteName,
+      sourcePath: input.sourcePath ?? current.sourcePath,
+      localPath: input.localPath ?? current.localPath
+    } : input);
 
     const effectiveSyncMode = normalized.syncMode ?? current.syncMode;
     const effectiveEncryptionEnabled = normalized.encryptionEnabled ?? current.encryptionEnabled;
@@ -256,8 +275,21 @@ export class MappingTaskService {
   private normalizeCreateOrUpdateInput<T extends CreateMappingTaskInput | UpdateMappingTaskInput>(input: T): T {
     const output: Record<string, unknown> = { ...input };
 
-    if ('localPath' in input && input.localPath !== undefined) {
-      output.localPath = this.normalizeLocalPath(input.localPath);
+    const sourceType = input.sourceType ?? 'local';
+    if (sourceType === 'rclone') {
+      const remoteName = input.sourceRemoteName?.trim();
+      if (!remoteName || !/^[A-Za-z0-9][A-Za-z0-9._ -]*$/.test(remoteName)) {
+        throw new AppError({ code: 'BAD_REQUEST', message: 'sourceRemoteName is required for rclone sources', statusCode: 400 });
+      }
+      const sourcePath = this.normalizeRemoteBasePath(input.sourcePath);
+      output.sourceType = 'rclone';
+      output.sourceRemoteName = remoteName;
+      output.sourcePath = sourcePath;
+      output.localPath = `rclone://${remoteName}${sourcePath ? `/${sourcePath}` : ''}`;
+    } else if (input.sourceType === 'local' && (!('localPath' in input) || input.localPath === undefined)) {
+      throw new AppError({ code: 'BAD_REQUEST', message: 'localPath is required when switching to a local source', statusCode: 400 });
+    } else if ('localPath' in input && input.localPath !== undefined) {
+      output.sourceType = 'local'; output.sourceRemoteName = null; output.sourcePath = ''; output.localPath = this.normalizeLocalPath(input.localPath);
     }
 
     if ('name' in input && input.name !== undefined) {
@@ -500,6 +532,9 @@ export class MappingTaskService {
       id: record.id.toString(),
       name: record.name,
       local_path: record.localPath,
+      source_type: record.sourceType,
+      source_remote_name: record.sourceRemoteName,
+      source_path: record.sourcePath,
       remotes: record.remotes.map((item) => ({
         remoteId: item.remoteId.toString(),
         remoteName: item.remote.remoteName,

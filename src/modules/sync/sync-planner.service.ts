@@ -23,6 +23,7 @@ export type UploadAction = {
   fileId: string;
   localPath: string;
   relativePath: string;
+  source?: { remoteName: string; remotePath: string };
   targets: RemoteTarget[];
   reason: 'new_file' | 'changed_file' | 'missing_replica';
 };
@@ -307,6 +308,7 @@ export class SyncPlanner {
           fileId: file.id.toString(),
           localPath: file.localPath,
           relativePath: file.relativePath,
+          source: context.sourceType === 'rclone' && context.sourceRemoteName ? { remoteName: context.sourceRemoteName, remotePath: path.posix.join(context.sourcePath ?? '', file.relativePath) } : undefined,
           targets: uploadTargets,
           reason:
             file.scanStatus === ScanStatus.changed

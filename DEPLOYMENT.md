@@ -192,7 +192,7 @@ DOCKER_LOCAL_PATH_ALLOWED_ROOTS=/data
 DOCKER_RCLONE_RCD_URL=http://rclone:5572
 ```
 
-`DATA_ROOT` 会只读挂载到 backend 和 rclone 的 `/data`。映射任务必须使用容器内路径，例如 `/data/photos`。加密同步产生的临时文件通过共享的 `everdrive_tmp` 数据卷交给 rclone 上传。
+`DATA_ROOT` 会只读挂载到 backend 和 rclone 的 `/data`。映射任务必须使用容器内路径，例如 `/data/photos`。加密同步产生的临时文件通过共享的 `everdrive_tmp` 数据卷交给 rclone 上传。该卷在 backend 和 rclone 中均为可写，用于远程 SMB/SFTP 来源启用加密时的临时下载；请确保磁盘空间足够。
 
 ```bash
 cd /home/ubuntu/everDrive

@@ -46,6 +46,8 @@ import { AutoSyncSchedulerService } from './modules/scheduler/auto-sync-schedule
 import { CloudTrashCleanupService } from './modules/cloud-trash/cloud-trash-cleanup.service.js';
 import { createLocalPathRouter } from './modules/local-path/local-path.controller.js';
 import { LocalPathService } from './modules/local-path/local-path.service.js';
+import { RcloneSourceService } from './modules/source/rclone-source.service.js';
+import { createRcloneSourceRouter } from './modules/source/rclone-source.controller.js';
 
 async function bootstrap(): Promise<void> {
   const env = getEnv();
@@ -63,17 +65,24 @@ async function bootstrap(): Promise<void> {
   const cloudInventoryRepository = new CloudInventoryRepository(database.prisma);
   const rcloneConfigService = new RcloneConfigService(
     rcloneClient,
-    async (remoteName) => cloudInventoryRepository.getRemoteByBoundRemoteName(remoteName),
+    async (remoteName) => {
+      const cloud = await cloudInventoryRepository.getRemoteByBoundRemoteName(remoteName);
+      if (cloud) return cloud;
+      const sourceTask = await database.prisma.mappingTask.findFirst({ where: { sourceType: 'rclone', sourceRemoteName: remoteName, deletedAt: null }, select: { id: true, name: true } });
+      return sourceTask ? { id: sourceTask.id, displayName: `source mapping ` } : null;
+    },
     async () => cloudInventoryRepository.listRemotes()
   );
   const rcloneConfigRouter = createRcloneConfigRouter(rcloneConfigService, auditService);
   const cloudInventoryService = new CloudInventoryService(cloudInventoryRepository, rcloneClient);
   const remoteRouter = createRemoteRouter(cloudInventoryService, jobQueue, auditService);
+  const rcloneSourceService = new RcloneSourceService(rcloneClient, async (name) => Boolean(await cloudInventoryRepository.getRemoteByBoundRemoteName(name)));
+  const rcloneSourceRouter = createRcloneSourceRouter(rcloneSourceService);
   const mappingTaskRepository = new MappingTaskPrismaRepository(database.prisma);
   const mappingTaskService = new MappingTaskService(mappingTaskRepository);
-  const mappingTaskRouter = createMappingTaskRouter(mappingTaskService, jobQueue, auditService);
+  const mappingTaskRouter = createMappingTaskRouter(mappingTaskService, jobQueue, auditService, rcloneSourceService);
   const scanRepository = new ScanRepository(database.prisma);
-  const scanService = new ScanService(scanRepository);
+  const scanService = new ScanService(scanRepository, undefined, undefined, rcloneSourceService);
   const scanRouter = createScanRouter(scanService, jobQueue);
   const migrationRepository = new MigrationRepository(database.prisma);
   const migrationService = new MigrationService(migrationRepository, new RcloneService(rcloneClient));
@@ -208,6 +217,7 @@ async function bootstrap(): Promise<void> {
     checkRclone: () => rcloneClient.checkOnline(),
     remoteRouter,
     rcloneConfigRouter,
+    rcloneSourceRouter,
     mappingTaskRouter,
     scanRouter,
     renameDetectRouter,

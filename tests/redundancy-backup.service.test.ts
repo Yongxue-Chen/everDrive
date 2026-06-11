@@ -115,4 +115,10 @@ describe('RedundancyBackupService', () => {
       })
     );
   });
+
+  it('copies an unencrypted readonly rclone source directly to targets', async () => {
+    const copy=vi.fn(async()=>({async:false as const,result:{}}));const service=new RedundancyBackupService(repoStub(),rcloneStub(copy));
+    await service.uploadFileToTargets({fileId:'1',localPath:'rclone://lan-smb/photos/a.jpg',source:{remoteName:'lan-smb',remotePath:'photos/a.jpg'},reason:'new_file',targets:[{remoteId:'11',remoteName:'driveA',remotePath:'a.jpg'}]} as any);
+    expect(copy).toHaveBeenCalledWith(expect.objectContaining({srcFs:'lan-smb:',srcRemote:'photos/a.jpg',dstFs:'driveA:',dstRemote:'a.jpg'}));
+  });
 });

@@ -25,7 +25,8 @@ describe('docker compose deployment contract', () => {
 
     expect(compose).toContain('TMPDIR: /var/lib/everdrive/tmp');
     expect(compose).toContain('- everdrive_tmp:/var/lib/everdrive/tmp');
-    expect(compose).toContain('- everdrive_tmp:/var/lib/everdrive/tmp:ro');
+    expect(compose.split('- everdrive_tmp:/var/lib/everdrive/tmp')).toHaveLength(3);
+    expect(compose).not.toContain('- everdrive_tmp:/var/lib/everdrive/tmp:ro');
     expect(compose).toMatch(/\n  everdrive_tmp:\s*$/m);
   });
 

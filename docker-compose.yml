@@ -30,7 +30,7 @@ services:
     volumes:
       - rclone_config:/config/rclone
       - "${DATA_ROOT:-./data}:/data:ro"
-      - everdrive_tmp:/var/lib/everdrive/tmp:ro
+      - everdrive_tmp:/var/lib/everdrive/tmp
     healthcheck:
       test: ["CMD", "rclone", "rc", "core/version", "--url=http://127.0.0.1:5572", "--user=${RCLONE_RCD_USER:-admin}", "--pass=${RCLONE_RCD_PASS:-change_me}"]
       interval: 10s

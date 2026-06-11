@@ -3,6 +3,9 @@ import { HashType, JobStatus, JobType, ScanStatus, type Prisma, type PrismaClien
 export type MappingTaskForScan = {
   id: bigint;
   localPath: string;
+  sourceType?: 'local' | 'rclone';
+  sourceRemoteName?: string | null;
+  sourcePath?: string;
   isActive: boolean;
   deletedAt: Date | null;
 };
@@ -41,6 +44,9 @@ export class ScanRepository {
       select: {
         id: true,
         localPath: true,
+        sourceType: true,
+        sourceRemoteName: true,
+        sourcePath: true,
         isActive: true,
         deletedAt: true
       }

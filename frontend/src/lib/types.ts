@@ -61,6 +61,9 @@ export type MappingTaskListResponse = {
     id: string;
     name: string;
     local_path: string;
+    source_type: 'local' | 'rclone';
+    source_remote_name: string | null;
+    source_path: string;
     remotes: Array<{
       remoteId: string;
       remoteName: string;
@@ -95,6 +98,9 @@ export type MappingTaskRemoteBindingInput = {
 export type CreateMappingTaskPayload = {
   name: string;
   localPath: string;
+  sourceType?: 'local' | 'rclone';
+  sourceRemoteName?: string | null;
+  sourcePath?: string;
   syncMode: 'archive' | 'mirror';
   encryptionEnabled: boolean;
   redundancyEnabled: boolean;
@@ -329,3 +335,12 @@ export type RcloneProvider = { Name: string; Prefix: string; Description: string
 export type RcloneConfigRemoteSummary = { name: string; boundRemoteId: string | null; boundDisplayName: string | null };
 export type RcloneConfigRemote = { name: string; type: string; parameters: Record<string, unknown>; sensitiveFields: string[] };
 export type RcloneConfigMutationPayload = { name: string; type: string; parameters: Record<string, RcloneConfigValue> };
+
+export type MigrationPayload = { sourceRemoteId: string; targetRemoteId: string; scopeRelativePath?: string; targetBasePath?: string; removeSourceReplica?: boolean };
+export type RedundancyOverview = { mappingTaskId: string; name: string; localPath: string; remotes: Array<{ remoteId: string; remoteName: string; displayName: string; isActive: boolean; syncedCount: number; pendingCount: number; failedCount: number; deletedCount: number }>; fileCount: number; replicaTarget: number; replicaAchieved: number; protectionLevel: 'ok' | 'degraded' | 'critical' };
+export type AuditLogItem = { id: string; operationType: string; targetType: string; targetId: string | null; message: string; metadataJson: unknown; createdAt: string };
+export type AuditLogQuery = { operationType?: string; targetType?: string; targetId?: string; from?: string; to?: string; limit?: number };
+export type MetricsOverview = { queueLength: number; runningTasks: number; failedTasks24h: number; remoteCapacityNearLimitCount: number; recentSyncSuccessRate: number; recentFailedJobs: Array<{ jobId: string; jobType: string; mappingTaskId: string; errorMessage: string | null; createdAt: string }> };
+
+export type RcloneSourceOption = { name: string; type: 'smb' | 'sftp' };
+export type RcloneSourceBrowseItem = { name: string; path: string; isDirectory: boolean; sizeBytes: string };

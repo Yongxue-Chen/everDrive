@@ -13,18 +13,23 @@ import {
   toBigInt
 } from './mapping-task.dto.js';
 import { MappingTaskService } from './mapping-task.service.js';
+import type { RcloneSourceService } from '../source/rclone-source.service.js';
 
-export function createMappingTaskRouter(service: MappingTaskService, queue: JobQueueService, auditService?: AuditService): Router {
+export function createMappingTaskRouter(service: MappingTaskService, queue: JobQueueService, auditService?: AuditService, sourceService?: RcloneSourceService): Router {
   const router = Router();
 
   router.post(
     '/api/mapping-tasks',
     asyncHandler(async (req, res) => {
       const body = parseOrBadRequest(CreateMappingTaskSchema, req.body);
+      if ((body.sourceType === 'rclone' || body.sourceRemoteName) && body.sourceRemoteName) await sourceService?.test(body.sourceRemoteName, body.sourcePath ?? '');
 
       const item = await service.createTask({
         name: body.name,
         localPath: body.localPath,
+        sourceType: body.sourceType,
+        sourceRemoteName: body.sourceRemoteName,
+        sourcePath: body.sourcePath,
         syncMode: body.syncMode,
         encryptionEnabled: body.encryptionEnabled,
         redundancyEnabled: body.redundancyEnabled,
@@ -83,10 +88,14 @@ export function createMappingTaskRouter(service: MappingTaskService, queue: JobQ
       const taskId = parseTaskId(req.params.taskId);
 
       const body = parseOrBadRequest(UpdateMappingTaskSchema, req.body);
+      if ((body.sourceType === 'rclone' || body.sourceRemoteName) && body.sourceRemoteName) await sourceService?.test(body.sourceRemoteName, body.sourcePath ?? '');
 
       const item = await service.updateTask(taskId, {
         name: body.name,
         localPath: body.localPath,
+        sourceType: body.sourceType,
+        sourceRemoteName: body.sourceRemoteName,
+        sourcePath: body.sourcePath,
         syncMode: body.syncMode,
         encryptionEnabled: body.encryptionEnabled,
         redundancyEnabled: body.redundancyEnabled,

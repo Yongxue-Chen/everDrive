@@ -15,15 +15,16 @@ everDrive 是一个“本地目录 -> 多云存储”的同步与管理系统。
 | 能力 | 当前状态 |
 | --- | --- |
 | 本地目录扫描、MD5/SHA1 校验 | 已支持 |
+| SMB/SFTP 局域网只读来源 | 已支持；可直接传输，mirror 仅影响目标云盘 |
 | 自动同步和手动同步 | 已支持 |
 | Archive 归档模式 | 已支持，本地删除不会删除云端副本 |
 | Mirror 镜像模式 | 已支持，可配合自建云端回收站 |
-| 多云冗余备份 | 已支持；失败副本恢复主要通过 API |
+| 多云冗余备份 | 已支持；提供冗余恢复页面 |
 | 多云容量分片 | 已支持；每个文件完整存放在一个云盘 |
 | 上传前 AES-256-GCM 加密 | 已支持；暂未提供内置解密恢复流程 |
 | 本地重命名识别与云端移动 | 已支持 |
 | 云盘容量、健康检查和告警 | 已支持 |
-| 云端迁移 | 后端 API 已支持，暂未提供专用 Web 页面 |
+| 云端迁移 | 已支持；提供专用 Web 页面 |
 | rclone remote 配置中心 | 已支持；复杂 OAuth 仍可能需要容器命令行 |
 | Docker、NAS、飞牛 fnOS 部署 | 已支持 |
 | 应用登录和多用户权限 | 暂未支持，仅适合可信内网 |
@@ -341,7 +342,7 @@ DATA_ROOT=/你的/NAS/共享目录
 DOCKER_LOCAL_PATH_ALLOWED_ROOTS=/data
 ```
 
-Compose 会将 `DATA_ROOT` 只读挂载到 backend 和 rclone 容器内相同的 `/data` 路径。映射任务应选择 `/data` 下的目录。加密任务使用的临时目录通过 `everdrive_tmp` 数据卷在 backend 和 rclone 之间共享。
+Compose 会将 `DATA_ROOT` 只读挂载到 backend 和 rclone 容器内相同的 `/data` 路径。映射任务应选择 `/data` 下的目录。加密任务使用的临时目录通过可写的 `everdrive_tmp` 数据卷在 backend 和 rclone 之间共享。远程 SMB/SFTP 来源启用加密时会先暂存文件，请确保该卷空间足够。
 
 MySQL、backend 和 rclone RC 默认只绑定宿主机 `127.0.0.1`；前端仍监听所有网络接口。只有明确需要从其他机器直接访问内部服务时，才覆盖对应的 `MYSQL_BIND_ADDRESS`、`BACKEND_BIND_ADDRESS` 或 `RCLONE_BIND_ADDRESS`。
 
@@ -438,7 +439,7 @@ docker compose down -v
 
 4. 在“映射任务管理”中新建映射任务。
 
-   需要填写本地路径、同步模式、是否加密、是否冗余、是否分片，以及绑定哪些业务云盘。
+   需要选择服务器本地目录或只读 SMB/SFTP 来源，填写同步模式、是否加密、是否冗余、是否分片，以及绑定哪些业务云盘。
 
 5. 手动触发同步或等待自动调度。
 

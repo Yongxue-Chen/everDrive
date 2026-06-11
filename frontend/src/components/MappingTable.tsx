@@ -34,7 +34,7 @@ export function MappingTable({ items, pendingTaskId, onEdit, onRunSync, onToggle
         <thead>
           <tr>
             <th>映射名称</th>
-            <th>本地路径</th>
+            <th>来源</th>
             <th>同步模式</th>
             <th>远端绑定</th>
             <th>状态</th>
@@ -46,7 +46,7 @@ export function MappingTable({ items, pendingTaskId, onEdit, onRunSync, onToggle
           {items.map((item) => (
             <tr key={item.id}>
               <td>{item.name}</td>
-              <td className="mono">{item.local_path}</td>
+              <td><div>{item.source_type === 'rclone' ? 'SMB/SFTP 只读来源' : '服务器本地目录'}</div><div className="mono muted">{item.local_path}</div></td>
               <td>{modeLabels[item.sync_mode]}</td>
               <td>
                 {item.remotes.map((remote, index) => (

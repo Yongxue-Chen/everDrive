@@ -71,6 +71,8 @@ export type RcloneConfigProviders = {
   providers: Array<Record<string, unknown>>;
 };
 
+export type RcloneListEntry = { Path: string; Name: string; IsDir: boolean; Size: number; ModTime: string; Hashes?: Record<string, string> };
+
 export type RcloneAboutResult = {
   total: string | null;
   used: string | null;
@@ -122,6 +124,8 @@ export interface IRcloneClient {
   listRemotes(): Promise<string[]>;
   getAbout(fs: string): Promise<RcloneAboutResult>;
   stat(fs: string, remote: string): Promise<boolean>;
+  getRemoteConfig?(name: string): Promise<Record<string, unknown>>;
+  listEntries?(fs: string, remote: string, recursive?: boolean): Promise<RcloneListEntry[]>;
   getConfigProviders(): Promise<RcloneConfigProviders>;
   copy(input: TransferOperationInput): Promise<RcloneOperationResult>;
   sync(input: TransferOperationInput): Promise<RcloneOperationResult>;
@@ -212,6 +216,11 @@ export class RcloneClient implements IRcloneClient {
       remote
     });
     return response.item !== null && response.item !== undefined;
+  }
+
+  async listEntries(fs: string, remote: string, recursive = false): Promise<RcloneListEntry[]> {
+    const response = await this.post<{ list?: RcloneListEntry[] }>('operations/list', { fs, remote, opt: { recurse: recursive, showHash: false } });
+    return response.list ?? [];
   }
 
   async getConfigProviders(): Promise<RcloneConfigProviders> {

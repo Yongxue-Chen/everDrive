@@ -7,6 +7,9 @@ import {
   deleteMappingTask,
   fetchCloudRemotes,
   fetchMappingTasks,
+  listRcloneSources,
+  browseRcloneSource,
+  testRcloneSource,
   getApiMode,
   runMappingTaskSync,
   setMappingTaskActive,
@@ -23,6 +26,9 @@ type BindingForm = {
 type MappingFormState = {
   name: string;
   localPath: string;
+  sourceType: 'local' | 'rclone';
+  sourceRemoteName: string;
+  sourcePath: string;
   syncMode: 'archive' | 'mirror';
   encryptionEnabled: boolean;
   redundancyEnabled: boolean;
@@ -34,6 +40,9 @@ type MappingFormState = {
 const createEmptyForm = (): MappingFormState => ({
   name: '',
   localPath: '',
+  sourceType: 'local',
+  sourceRemoteName: '',
+  sourcePath: '',
   syncMode: 'archive',
   encryptionEnabled: false,
   redundancyEnabled: false,
@@ -46,6 +55,9 @@ function mapItemToForm(item: MappingTaskItem): MappingFormState {
   return {
     name: item.name,
     localPath: item.local_path,
+    sourceType: item.source_type ?? 'local',
+    sourceRemoteName: item.source_remote_name ?? '',
+    sourcePath: item.source_path ?? '',
     syncMode: item.sync_mode,
     encryptionEnabled: item.encryption_enabled,
     redundancyEnabled: item.redundancy_enabled,
@@ -72,6 +84,9 @@ export function MappingTasksPage() {
     queryFn: fetchMappingTasks,
     refetchInterval: 10000
   });
+  const sourcesQuery = useQuery({ queryKey: ['rclone-sources'], queryFn: listRcloneSources });
+  const sourceBrowseQuery = useQuery({ queryKey: ['rclone-source-browse', form.sourceRemoteName, form.sourcePath], queryFn: () => browseRcloneSource(form.sourceRemoteName, form.sourcePath), enabled: form.sourceType === 'rclone' && Boolean(form.sourceRemoteName) });
+  const sourceTestMutation = useMutation({ mutationFn: () => testRcloneSource(form.sourceRemoteName, form.sourcePath) });
   const remotesQuery = useQuery({
     queryKey: ['cloud-remotes'],
     queryFn: fetchCloudRemotes,
@@ -92,6 +107,9 @@ export function MappingTasksPage() {
       const body = {
         name: payload.name.trim(),
         localPath: payload.localPath.trim(),
+        sourceType: payload.sourceType,
+        sourceRemoteName: payload.sourceType === 'rclone' ? payload.sourceRemoteName : null,
+        sourcePath: payload.sourceType === 'rclone' ? payload.sourcePath.trim() : '',
         syncMode: payload.syncMode,
         encryptionEnabled: payload.encryptionEnabled,
         redundancyEnabled: payload.redundancyEnabled,
@@ -244,12 +262,17 @@ export function MappingTasksPage() {
               <input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="例如：照片归档" />
             </label>
             <label>
-              本地路径
-              <div className="path-input">
-                <input value={form.localPath} readOnly placeholder="请选择服务器目录" />
-                <button onClick={() => setIsPathPickerOpen(true)}>选择目录</button>
-              </div>
+              来源类型
+              <select value={form.sourceType} onChange={(e) => setForm((prev) => ({ ...prev, sourceType: e.target.value as 'local' | 'rclone', sourceRemoteName: '', sourcePath: '' }))}>
+                <option value="local">服务器本地目录</option><option value="rclone">局域网 SMB/SFTP（只读）</option>
+              </select>
             </label>
+            {form.sourceType === 'local' ? <label>本地路径<div className="path-input"><input value={form.localPath} readOnly placeholder="请选择服务器目录" /><button onClick={() => setIsPathPickerOpen(true)}>选择目录</button></div></label> : <>
+              <label>来源 remote<select value={form.sourceRemoteName} onChange={(e) => setForm((prev) => ({ ...prev, sourceRemoteName: e.target.value, sourcePath: '' }))}><option value="">请选择 SMB/SFTP remote</option>{sourcesQuery.data?.items.map((item) => <option key={item.name} value={item.name}>{item.name} ({item.type})</option>)}</select></label>
+              <label>来源目录<input value={form.sourcePath} onChange={(e) => setForm((prev) => ({ ...prev, sourcePath: e.target.value }))} placeholder="例如：photos/2026" /></label>
+              <label>目录浏览<select value="" onChange={(e) => setForm((prev) => ({ ...prev, sourcePath: e.target.value }))}><option value="">选择当前目录下的子目录</option>{sourceBrowseQuery.data?.items.filter((item) => item.isDirectory).map((item) => <option key={item.path} value={item.path}>{item.path}</option>)}</select></label>
+              <div className="panel panel--warning"><strong>来源严格只读</strong><p className="muted">archive 和 mirror 都不会修改 SMB/SFTP 来源；mirror 仅影响目标云盘。</p><button onClick={() => sourceTestMutation.mutate()} disabled={!form.sourceRemoteName || sourceTestMutation.isPending}>测试来源连接</button>{sourceTestMutation.data ? <p>连接正常。</p> : null}{sourceTestMutation.error ? <p className="error">连接失败。</p> : null}</div>
+            </>}
             <label>
               同步模式
               <select value={form.syncMode} onChange={(e) => setForm((prev) => ({ ...prev, syncMode: e.target.value as 'archive' | 'mirror' }))}>

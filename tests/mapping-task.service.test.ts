@@ -18,6 +18,9 @@ function buildTaskRecord(partial: Partial<MappingTaskRecord> = {}): MappingTaskR
     id: 100n,
     name: 'photos',
     localPath: '/data/photos',
+    sourceType: 'local',
+    sourceRemoteName: null,
+    sourcePath: '',
     syncMode: 'archive',
     encryptionEnabled: true,
     redundancyEnabled: false,
@@ -279,5 +282,27 @@ describe('MappingTaskService', () => {
     await service.deleteTask(100n, { hardDelete: true });
 
     expect(repository.hardDeleteTask).toHaveBeenCalledWith(100n);
+  });
+
+  it('normalizes a readonly rclone source identity', async () => {
+    const repository = createRepositoryStub({ createTask: vi.fn(async (input:any) => buildTaskRecord({ sourceType: input.sourceType, sourceRemoteName: input.sourceRemoteName, sourcePath: input.sourcePath, localPath: input.localPath } as any)) });
+    const service = new MappingTaskService(repository);
+    const item = await service.createTask({ name:'lan photos', sourceType:'rclone', sourceRemoteName:'lan-smb', sourcePath:'/photos//2026/', localPath:'/', syncMode:'mirror', encryptionEnabled:false, redundancyEnabled:false, splitEnabled:false, remoteBindings:[{remoteId:11n}] } as any);
+    expect(repository.createTask).toHaveBeenCalledWith(expect.objectContaining({ sourceType:'rclone', sourceRemoteName:'lan-smb', sourcePath:'photos/2026', localPath:'rclone://lan-smb/photos/2026' }));
+    expect((item as any).source_type).toBe('rclone');
+  });
+
+  it('rebuilds remote source identity when a partial update changes sourcePath', async () => {
+    const current = buildTaskRecord({ sourceType: 'rclone', sourceRemoteName: 'office smb', sourcePath: 'photos', localPath: 'rclone://office smb/photos' });
+    const repository = createRepositoryStub({ findTaskById: vi.fn(async () => current), updateTask: vi.fn(async (_id, input:any) => ({ ...current, ...input })) });
+    const service = new MappingTaskService(repository);
+    await service.updateTask(100n, { sourcePath: 'photos/2026' });
+    expect(repository.updateTask).toHaveBeenCalledWith(100n, expect.objectContaining({ sourceType: 'rclone', sourceRemoteName: 'office smb', sourcePath: 'photos/2026', localPath: 'rclone://office smb/photos/2026' }));
+  });
+
+  it('requires a local path when switching a remote source back to local', async () => {
+    const current = buildTaskRecord({ sourceType: 'rclone', sourceRemoteName: 'office smb', sourcePath: 'photos', localPath: 'rclone://office smb/photos' });
+    const service = new MappingTaskService(createRepositoryStub({ findTaskById: vi.fn(async () => current) }));
+    await expect(service.updateTask(100n, { sourceType: 'local' })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 });

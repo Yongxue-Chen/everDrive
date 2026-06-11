@@ -4,6 +4,9 @@ export type SyncContext = {
   id: bigint;
   name: string;
   localPath: string;
+  sourceType?: 'local' | 'rclone';
+  sourceRemoteName?: string | null;
+  sourcePath?: string;
   syncMode: 'archive' | 'mirror';
   encryptionEnabled: boolean;
   splitEnabled: boolean;
@@ -64,6 +67,9 @@ export class SyncEngineRepository {
         id: true,
         name: true,
         localPath: true,
+        sourceType: true,
+        sourceRemoteName: true,
+        sourcePath: true,
         syncMode: true,
         encryptionEnabled: true,
         splitEnabled: true,
@@ -125,6 +131,9 @@ export class SyncEngineRepository {
       id: task.id,
       name: task.name,
       localPath: task.localPath,
+      sourceType: task.sourceType,
+      sourceRemoteName: task.sourceRemoteName,
+      sourcePath: task.sourcePath,
       syncMode: task.syncMode,
       encryptionEnabled: task.encryptionEnabled,
       splitEnabled: task.splitEnabled,

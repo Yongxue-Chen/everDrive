@@ -73,6 +73,9 @@ export const mockMappingTasks: MappingTaskListResponse = {
       id: '1',
       name: '工作空间 / 照片',
       local_path: '/data/photos',
+      source_type: 'local',
+      source_remote_name: null,
+      source_path: '',
       remotes: [
         {
           remoteId: '11',

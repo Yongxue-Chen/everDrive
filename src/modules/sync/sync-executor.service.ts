@@ -59,7 +59,7 @@ export class SyncExecutor {
 
     try {
       for (const action of plan.uploadActions) {
-        await this.executeUpload(action, summary);
+        await this.executeUpload(action, plan, summary);
       }
       for (const action of plan.renameActions) {
         await this.executeRename(action, plan, summary);
@@ -90,11 +90,13 @@ export class SyncExecutor {
     }
   }
 
-  private async executeUpload(action: UploadAction, summary: Omit<SyncExecutionSummary, 'jobId' | 'mappingTaskId'>): Promise<void> {
+  private async executeUpload(action: UploadAction, plan: SyncPlan, summary: Omit<SyncExecutionSummary, 'jobId' | 'mappingTaskId'>): Promise<void> {
     const upload = await this.redundancyBackupService.uploadFileToTargets({
       fileId: action.fileId,
       localPath: action.localPath,
       reason: action.reason,
+      source: action.source,
+      encryptionEnabled: plan.encryptionEnabled,
       targets: action.targets
     });
 

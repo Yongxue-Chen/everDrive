@@ -115,7 +115,7 @@ With redundancy enabled, each file is uploaded to every bound active business re
 - A failure on one remote does not stop uploads to the remaining remotes.
 - Backend APIs expose redundancy status and failed-replica retry operations.
 
-Redundancy status and retry operations do not yet have a complete dedicated Web page and are mainly available through the backend API.
+The “Redundancy Recovery” page shows protection status and retries failed replicas.
 
 ### 4.6 Capacity-Based Split Placement
 
@@ -174,7 +174,7 @@ The backend migration API can copy files from one business remote to another:
 - Can remove the source replica after successful migration.
 - Runs through the long-job queue.
 
-Migration currently has no dedicated Web page and must be invoked through the API.
+The “Cloud Migration” page submits migration jobs and requires explicit confirmation before removing source cloud replicas.
 
 ### 4.12 rclone Configuration Center
 
@@ -194,16 +194,29 @@ The configuration center calls only fixed rclone RC APIs and does not expose arb
 - The dashboard shows mapping-task file counts, total size, and recent synchronization states.
 - The dashboard shows business-remote capacity and health.
 - Operation logs record selected mapping, business-remote, settings, and maintenance changes.
-- `/health`, `/ready`, and metrics APIs are available.
+- Operation Logs and System Metrics pages are available, together with `/health` and `/ready` APIs.
+
+### 4.14 Read-only LAN SMB/SFTP Sources
+
+- A mapping can use a server-local directory or an SMB/SFTP rclone remote.
+- SMB/SFTP sources are always read-only; neither `archive` nor `mirror` deletes, moves, or modifies source files.
+- `mirror` affects target cloud replicas only. Offline, failed, or abnormally reduced scans do not mark files missing.
+- Without encryption, rclone copies directly from source remote to target remote.
+- With encryption, files are staged temporarily, encrypted, uploaded, and cleaned up after success or failure.
+- The Mapping Tasks page supports source selection, directory browsing, and connection tests.
 
 ## 5. Web Pages
 
 | Page | Current Capabilities |
 | --- | --- |
 | Workspace | Mapping-task summaries, total indexed data, cloud warnings, and recent job states |
-| Mapping Tasks | Create, edit, enable, disable, soft-delete, select directories, and trigger synchronization |
+| Mapping Tasks | Manage local or read-only SMB/SFTP sources, browse source directories, and trigger synchronization |
 | Cloud Remotes | Create and maintain business remotes, capacity, root paths, and cloud trash |
 | rclone Configuration | Manage underlying rclone remotes and test connectivity |
+| Cloud Migration | Submit cloud-to-cloud migration jobs |
+| Redundancy Recovery | Inspect protection and retry failed replicas |
+| Operation Logs | Filter and inspect operation records |
+| System Metrics | Inspect queues, success rate, capacity warnings, and failed jobs |
 | Settings | Configure scheduling, concurrency, rclone behavior, logging, and trash cleanup |
 
 The frontend supports `mock` and `live` data sources. Real usage requires “live backend”; mock operations are not written to the backend.
@@ -257,10 +270,9 @@ Each file is stored completely on one remote and is not divided into chunks.
 - No built-in encrypted download, decryption, or disaster-recovery workflow.
 - The in-memory task queue does not preserve queued jobs across backend restarts.
 - Large directory scans may consume significant time and memory, and currently calculate both MD5 and SHA1.
-- Cloud migration, redundancy recovery, operation logs, and metrics lack complete Web management pages.
 - OAuth providers usually still require interactive `rclone config` authorization.
 - Provider forms cannot represent every complex interactive rclone configuration flow.
-- everDrive is not a bidirectional synchronization tool; its primary data flow is local directory to cloud.
+- everDrive is not a bidirectional synchronization tool; its primary data flow is a local directory or read-only SMB/SFTP source to cloud.
 - Existing cloud files that are not recorded in the database are not automatically imported as local files.
 
 ## 9. Data Safety Recommendations

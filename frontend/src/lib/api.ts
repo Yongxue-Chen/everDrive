@@ -120,6 +120,9 @@ function upsertMockMappingTask(taskId: string, payload: CreateMappingTaskPayload
     id: taskId,
     name: '',
     local_path: '',
+    source_type: 'local' as const,
+    source_remote_name: null,
+    source_path: '',
     remotes: [],
     sync_mode: 'archive',
     encryption_enabled: false,
@@ -139,6 +142,9 @@ function upsertMockMappingTask(taskId: string, payload: CreateMappingTaskPayload
     ...existing,
     name: payload.name ?? existing.name,
     local_path: payload.localPath ?? existing.local_path,
+    source_type: payload.sourceType ?? existing.source_type,
+    source_remote_name: payload.sourceRemoteName ?? existing.source_remote_name,
+    source_path: payload.sourcePath ?? existing.source_path,
     remotes: nextBindings,
     sync_mode: payload.syncMode ?? existing.sync_mode,
     encryption_enabled: payload.encryptionEnabled ?? existing.encryption_enabled,
@@ -491,3 +497,26 @@ export async function deleteRcloneRemote(name: string): Promise<{ deleted: true 
 export async function testRcloneRemote(name: string): Promise<{ online: true }> {
   return requestJsonWithBody(`/api/rclone-config/remotes/${encodeURIComponent(name)}/test`, 'POST');
 }
+
+export async function startCloudMigration(taskId: string, payload: import('./types.js').MigrationPayload): Promise<{ job: QueueJob }> {
+  return requestJsonWithBody(`/api/mapping-tasks/${encodeURIComponent(taskId)}/migration`, 'POST', payload);
+}
+export async function fetchRedundancyOverview(taskId: string): Promise<{ item: import('./types.js').RedundancyOverview }> {
+  return requestJson(`/api/mapping-tasks/${encodeURIComponent(taskId)}/redundancy`);
+}
+export async function retryFailedReplicas(taskId: string): Promise<{ summary: { mappingTaskId: string; retriedFiles: number; syncedRemotes: number; failedRemotes: number } }> {
+  return requestJsonWithBody(`/api/mapping-tasks/${encodeURIComponent(taskId)}/redundancy/retry-failed`, 'POST');
+}
+export async function fetchAuditLogs(query: import('./types.js').AuditLogQuery = {}): Promise<{ items: import('./types.js').AuditLogItem[] }> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) if (value !== undefined && value !== '') params.set(key, String(value));
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return requestJson(`/api/audit/logs${suffix}`);
+}
+export async function fetchMetricsOverview(): Promise<{ metrics: import('./types.js').MetricsOverview }> {
+  return requestJson('/api/metrics/overview');
+}
+
+export async function listRcloneSources(): Promise<{ items: import('./types.js').RcloneSourceOption[] }> { return requestJson('/api/sources/rclone'); }
+export async function browseRcloneSource(name: string, path = ''): Promise<{ items: import('./types.js').RcloneSourceBrowseItem[] }> { const query=path?`?path=${encodeURIComponent(path)}`:''; return requestJson(`/api/sources/rclone/${encodeURIComponent(name)}/browse${query}`); }
+export async function testRcloneSource(name: string, path = ''): Promise<{ online: true }> { return requestJsonWithBody(`/api/sources/rclone/${encodeURIComponent(name)}/test`,'POST',{path}); }

@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { FileSyncStatus, ScanStatus } from '@prisma/client';
 import type { IRcloneClient } from '../../infrastructure/rclone/rclone-rcd-client.js';
@@ -42,10 +44,11 @@ export class RedundancyBackupService {
     maxConcurrency?: number;
     maxRetries?: number;
     encryptionEnabled?: boolean;
+    source?: { remoteName: string; remotePath: string };
   }): Promise<RedundancyUploadSummary> {
     const maxConcurrency = Math.max(1, input.maxConcurrency ?? 2);
     const maxRetries = Math.max(0, input.maxRetries ?? 1);
-    const uploadSource = await this.prepareUploadSource(input.localPath, Boolean(input.encryptionEnabled));
+    const uploadSource = await this.prepareUploadSource(input.localPath, Boolean(input.encryptionEnabled), input.source);
 
     try {
       const results = await this.runConcurrent(input.targets, maxConcurrency, async (target) => {
@@ -64,8 +67,8 @@ export class RedundancyBackupService {
           attempts += 1;
           try {
             await this.rcloneClient.copy({
-              srcFs: path.dirname(uploadSource.localPath),
-              srcRemote: path.basename(uploadSource.localPath),
+              srcFs: uploadSource.remoteFs ?? path.dirname(uploadSource.localPath!),
+              srcRemote: uploadSource.remotePath ?? path.basename(uploadSource.localPath!),
               dstFs: target.remoteFs ?? buildRemoteFs(target.remoteName),
               dstRemote: target.remotePath,
               async: false
@@ -174,22 +177,58 @@ export class RedundancyBackupService {
     return results;
   }
 
+  private parseRemoteIdentity(value: string): { remoteName: string; remotePath: string } | undefined {
+    if (!value.startsWith('rclone://')) return undefined;
+    const rest = value.slice('rclone://'.length);
+    const separator = rest.indexOf('/');
+    return separator > 0 ? { remoteName: rest.slice(0, separator), remotePath: rest.slice(separator + 1) } : undefined;
+  }
+
   private async prepareUploadSource(
     localPath: string,
-    encryptionEnabled: boolean
-  ): Promise<{ localPath: string; cleanup: () => Promise<void> }> {
-    if (!encryptionEnabled) {
-      return {
-        localPath,
-        cleanup: async () => undefined
-      };
+    encryptionEnabled: boolean,
+    source?: { remoteName: string; remotePath: string }
+  ): Promise<{ localPath?: string; remoteFs?: string; remotePath?: string; cleanup: () => Promise<void> }> {
+    source ??= this.parseRemoteIdentity(localPath);
+    if (source && !encryptionEnabled) {
+      return { remoteFs: `${source.remoteName}:`, remotePath: source.remotePath, cleanup: async () => undefined };
     }
 
-    const key = requireEncryptionKeyOrThrow(process.env.ENCRYPTION_MASTER_KEY);
-    const encrypted = await encryptFileToTemp(localPath, key);
-    return {
-      localPath: encrypted.encryptedPath,
-      cleanup: encrypted.cleanup
+    let stagedDir: string | null = null;
+    let effectiveLocalPath = localPath;
+    const cleanupStaged = async () => {
+      if (stagedDir) await fs.rm(stagedDir, { recursive: true, force: true });
     };
+
+    try {
+      if (source) {
+        stagedDir = await fs.mkdtemp(path.join(os.tmpdir(), 'everdrive-source-'));
+        effectiveLocalPath = path.join(stagedDir, path.basename(source.remotePath));
+        await this.rcloneClient.copy({
+          srcFs: `${source.remoteName}:`,
+          srcRemote: source.remotePath,
+          dstFs: stagedDir,
+          dstRemote: path.basename(source.remotePath),
+          async: false
+        });
+      }
+
+      if (!encryptionEnabled) {
+        return { localPath: effectiveLocalPath, cleanup: cleanupStaged };
+      }
+
+      const key = requireEncryptionKeyOrThrow(process.env.ENCRYPTION_MASTER_KEY);
+      const encrypted = await encryptFileToTemp(effectiveLocalPath, key);
+      return {
+        localPath: encrypted.encryptedPath,
+        cleanup: async () => {
+          await encrypted.cleanup();
+          await cleanupStaged();
+        }
+      };
+    } catch (error) {
+      await cleanupStaged();
+      throw error;
+    }
   }
 }
