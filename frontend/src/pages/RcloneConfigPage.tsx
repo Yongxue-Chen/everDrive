@@ -102,7 +102,7 @@ export function RcloneConfigPage() {
   const renderConnectionStatus = (remoteName: string) => {
     const status = connectionStatuses[remoteName] ?? { state: 'unknown' as const };
     const label = status.state === 'online' ? '连接正常' : status.state === 'offline' ? '连接异常' : status.state === 'checking' ? '检测中' : '未检测';
-    return <div className="remote-status"><span className={`connection-status-dot connection-status-dot--`} /><span>{label}</span></div>;
+    return <div className="remote-status"><span className={`connection-status-dot connection-status-dot--${status.state}`} /><span>{label}</span></div>;
   };
   const renderConnectionDetails = (remoteName: string) => {
     const status = connectionStatuses[remoteName];

@@ -7,6 +7,7 @@ const links = [
   { to: '/rclone-config', label: 'rclone 配置' },
   { to: '/cloud-migration', label: '云端迁移' },
   { to: '/redundancy-recovery', label: '冗余恢复' },
+  { to: '/encryption-recovery', label: '加密恢复' },
   { to: '/operation-logs', label: '操作日志' },
   { to: '/system-metrics', label: '系统指标' },
   { to: '/settings', label: '设置' }

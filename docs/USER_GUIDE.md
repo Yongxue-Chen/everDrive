@@ -137,7 +137,7 @@ docker compose exec rclone rclone config
 - 云端路径会根据原相对路径生成不可读的哈希路径。
 - Docker 模式通过共享临时卷让 rclone 上传加密结果。
 
-重要限制：当前项目没有内置的解密下载和恢复界面。必须长期安全保存 `ENCRYPTION_MASTER_KEY`；密钥丢失后无法恢复已加密数据。
+可在“加密恢复”页面选择已知加密任务和成功副本，使用服务器当前的 `ENCRYPTION_MASTER_KEY` 解密下载单个文件。必须长期安全保存该密钥；密钥丢失后无法恢复已加密数据。
 
 ### 4.8 重命名识别
 

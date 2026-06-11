@@ -343,5 +343,8 @@ export type AuditLogItem = { id: string; operationType: string; targetType: stri
 export type AuditLogQuery = { operationType?: string; targetType?: string; targetId?: string; from?: string; to?: string; limit?: number };
 export type MetricsOverview = { queueLength: number; runningTasks: number; failedTasks24h: number; remoteCapacityNearLimitCount: number; recentSyncSuccessRate: number; recentFailedJobs: Array<{ jobId: string; jobType: string; mappingTaskId: string; errorMessage: string | null; createdAt: string }> };
 
+export type EncryptionRecoveryTask = { id: string; name: string; fileCount: number };
+export type EncryptionRecoveryFile = { id: string; relativePath: string; fileSize: string; modifiedTime: string; replicas: Array<{ remoteId: string; displayName: string; remotePath: string }> };
+
 export type RcloneSourceOption = { name: string; type: 'smb' | 'sftp' };
 export type RcloneSourceBrowseItem = { name: string; path: string; isDirectory: boolean; sizeBytes: string };

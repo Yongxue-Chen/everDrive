@@ -9,6 +9,7 @@ import { CloudMigrationPage } from './pages/CloudMigrationPage';
 import { RedundancyRecoveryPage } from './pages/RedundancyRecoveryPage';
 import { OperationLogsPage } from './pages/OperationLogsPage';
 import { SystemMetricsPage } from './pages/SystemMetricsPage';
+import { EncryptionRecoveryPage } from './pages/EncryptionRecoveryPage';
 
 export const router = createBrowserRouter([
   {
@@ -22,6 +23,7 @@ export const router = createBrowserRouter([
       { path: 'rclone-config', element: <RcloneConfigPage /> },
       { path: 'cloud-migration', element: <CloudMigrationPage /> },
       { path: 'redundancy-recovery', element: <RedundancyRecoveryPage /> },
+      { path: 'encryption-recovery', element: <EncryptionRecoveryPage /> },
       { path: 'operation-logs', element: <OperationLogsPage /> },
       { path: 'system-metrics', element: <SystemMetricsPage /> },
       { path: 'settings', element: <SettingsPage /> }

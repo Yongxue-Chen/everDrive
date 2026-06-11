@@ -49,6 +49,8 @@ import { createLocalPathRouter } from './modules/local-path/local-path.controlle
 import { LocalPathService } from './modules/local-path/local-path.service.js';
 import { RcloneSourceService } from './modules/source/rclone-source.service.js';
 import { createRcloneSourceRouter } from './modules/source/rclone-source.controller.js';
+import { createEncryptionRecoveryRouter } from './modules/encryption-recovery/encryption-recovery.controller.js';
+import { EncryptionRecoveryService } from './modules/encryption-recovery/encryption-recovery.service.js';
 
 async function bootstrap(): Promise<void> {
   const env = getEnv();
@@ -118,6 +120,8 @@ async function bootstrap(): Promise<void> {
   const settingsRouter = createSettingsRouter(settingsService, auditService);
   const localPathService = new LocalPathService(env.LOCAL_PATH_ALLOWED_ROOTS.split(','));
   const localPathRouter = createLocalPathRouter(localPathService);
+  const encryptionRecoveryService = new EncryptionRecoveryService(database.prisma, rcloneClient);
+  const encryptionRecoveryRouter = createEncryptionRecoveryRouter(encryptionRecoveryService, auditService);
   const cloudTrashCleanupService = new CloudTrashCleanupService({
     settingsService,
     listActiveRemotes: async () => {
@@ -233,7 +237,8 @@ async function bootstrap(): Promise<void> {
     settingsRouter,
     auditRouter,
     metricsRouter,
-    localPathRouter
+    localPathRouter,
+    encryptionRecoveryRouter
   });
 
   const server = app.listen(env.PORT, () => {

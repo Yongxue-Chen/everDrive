@@ -14,7 +14,7 @@ export function SettingsPage() {
     timeoutMs: 5000,
     retryAttempts: 2,
     retryDelayMs: 250,
-    scanInterval: 300,
+    scanInterval: 900,
     syncConcurrency: 4,
     rcloneConcurrency: 4,
     jobLong: 2,

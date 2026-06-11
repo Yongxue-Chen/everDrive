@@ -24,6 +24,7 @@ type CreateAppDeps = {
   auditRouter?: Router;
   metricsRouter?: Router;
   localPathRouter?: Router;
+  encryptionRecoveryRouter?: Router;
 };
 
 export function createApp(deps: CreateAppDeps) {
@@ -57,6 +58,7 @@ export function createApp(deps: CreateAppDeps) {
   app.use(deps.auditRouter ?? express.Router());
   app.use(deps.metricsRouter ?? express.Router());
   app.use(deps.localPathRouter ?? express.Router());
+  app.use(deps.encryptionRecoveryRouter ?? express.Router());
 
   app.use(notFoundHandler);
   app.use(errorHandler);

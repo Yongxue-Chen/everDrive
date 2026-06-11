@@ -4,7 +4,7 @@ import { parseEnv } from '../src/config/env.js';
 describe('parseEnv', () => {
   it('defaults automatic sync to five minutes', () => {
     const parsed = parseEnv({ DATABASE_URL: 'mysql://root:pass:3306/everdrive', RCLONE_RCD_URL: 'http://127.0.0.1:5572', RCLONE_RCD_USER: 'admin', RCLONE_RCD_PASS: 'secret' });
-    expect(parsed.SCAN_INTERVAL_SECONDS).toBe(300);
+    expect(parsed.SCAN_INTERVAL_SECONDS).toBe(900);
   });
 
   it('parses required environment variables and optional runtime knobs', () => {

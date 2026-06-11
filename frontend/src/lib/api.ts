@@ -522,3 +522,14 @@ export async function fetchMetricsOverview(): Promise<{ metrics: import('./types
 export async function listRcloneSources(): Promise<{ items: import('./types.js').RcloneSourceOption[] }> { return requestJson('/api/sources/rclone'); }
 export async function browseRcloneSource(name: string, path = ''): Promise<{ items: import('./types.js').RcloneSourceBrowseItem[] }> { const query=path?`?path=${encodeURIComponent(path)}`:''; return requestJson(`/api/sources/rclone/${encodeURIComponent(name)}/browse${query}`); }
 export async function testRcloneSource(name: string, path = ''): Promise<{ online: true }> { return requestJsonWithBody(`/api/sources/rclone/${encodeURIComponent(name)}/test`,'POST',{path}); }
+
+export async function listEncryptionRecoveryTasks(): Promise<{ items: import('./types.js').EncryptionRecoveryTask[] }> {
+  return requestJson('/api/encryption-recovery/tasks');
+}
+export async function listEncryptionRecoveryFiles(taskId: string, query = ''): Promise<{ items: import('./types.js').EncryptionRecoveryFile[] }> {
+  const suffix = query ? `?query=${encodeURIComponent(query)}` : '';
+  return requestJson(`/api/encryption-recovery/tasks/${encodeURIComponent(taskId)}/files${suffix}`);
+}
+export function encryptionRecoveryDownloadUrl(fileId: string, remoteId: string): string {
+  return `/api/encryption-recovery/files/${encodeURIComponent(fileId)}/download?remoteId=${encodeURIComponent(remoteId)}`;
+}

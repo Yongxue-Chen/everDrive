@@ -1,4 +1,4 @@
-import { createCipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
@@ -62,6 +62,24 @@ export async function encryptFileToTemp(localPath: string, key: Buffer): Promise
       await fsp.rm(tmpRoot, { recursive: true, force: true });
     }
   };
+}
+
+export async function decryptFile(inputPath: string, outputPath: string, key: Buffer): Promise<void> {
+  const stat = await fsp.stat(inputPath);
+  const headerSize = FILE_MAGIC.length + 12;
+  const authTagSize = 16;
+  if (stat.size <= headerSize + authTagSize) throw new AppError({ code: 'BAD_REQUEST', message: 'encrypted file is truncated', statusCode: 400 });
+  const handle = await fsp.open(inputPath, 'r');
+  try {
+    const header = Buffer.alloc(headerSize);
+    const authTag = Buffer.alloc(authTagSize);
+    await handle.read(header, 0, header.length, 0);
+    await handle.read(authTag, 0, authTag.length, stat.size - authTagSize);
+    if (!header.subarray(0, FILE_MAGIC.length).equals(FILE_MAGIC)) throw new AppError({ code: 'BAD_REQUEST', message: 'file is not an everDrive encrypted file', statusCode: 400 });
+    const decipher = createDecipheriv('aes-256-gcm', key, header.subarray(FILE_MAGIC.length));
+    decipher.setAuthTag(authTag);
+    await pipeline(fs.createReadStream(inputPath, { start: headerSize, end: stat.size - authTagSize - 1 }), decipher, fs.createWriteStream(outputPath));
+  } finally { await handle.close(); }
 }
 
 export function requireEncryptionKeyOrThrow(rawKey: string | undefined): Buffer {

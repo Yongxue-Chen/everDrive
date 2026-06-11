@@ -137,7 +137,7 @@ With encryption enabled:
 - Cloud paths are generated as unreadable hashes based on original relative paths.
 - Docker deployments use a shared temporary volume so rclone can upload encrypted output.
 
-Important limitation: everDrive currently has no built-in decryption download or restore workflow. Keep `ENCRYPTION_MASTER_KEY` safe permanently; encrypted data cannot be recovered if the key is lost.
+Use the Encryption Recovery page to select a known encrypted task and synced replica, then decrypt and download an individual file with the server current `ENCRYPTION_MASTER_KEY`. Keep that key safe permanently; encrypted data cannot be recovered if the key is lost.
 
 ### 4.8 Rename Detection
 
@@ -267,7 +267,7 @@ Each file is stored completely on one remote and is not divided into chunks.
 ## 8. Current Limitations
 
 - No application login or multi-user permissions; trusted internal networks only.
-- No built-in encrypted download, decryption, or disaster-recovery workflow.
+- Encrypted recovery currently supports controlled single-file browser downloads; bulk restore is not yet available.
 - The in-memory task queue does not preserve queued jobs across backend restarts.
 - Large directory scans may consume significant time and memory, and currently calculate both MD5 and SHA1.
 - OAuth providers usually still require interactive `rclone config` authorization.
