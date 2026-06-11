@@ -8,6 +8,35 @@ everDrive 是一个“本地目录 -> 多云存储”的同步与管理系统。
 - 在 Web 界面管理云盘、映射任务、容量阈值、任务状态和系统设置。
 - 通过 `archive` 或 `mirror` 模式控制云端文件的保留和删除行为。
 
+详细功能、核心概念、首次同步流程和当前限制，请阅读用户手册：[简体中文](docs/USER_GUIDE.md) | [English](docs/USER_GUIDE.en.md)。
+
+## 当前功能概览
+
+| 能力 | 当前状态 |
+| --- | --- |
+| 本地目录扫描、MD5/SHA1 校验 | 已支持 |
+| 自动同步和手动同步 | 已支持 |
+| Archive 归档模式 | 已支持，本地删除不会删除云端副本 |
+| Mirror 镜像模式 | 已支持，可配合自建云端回收站 |
+| 多云冗余备份 | 已支持；失败副本恢复主要通过 API |
+| 多云容量分片 | 已支持；每个文件完整存放在一个云盘 |
+| 上传前 AES-256-GCM 加密 | 已支持；暂未提供内置解密恢复流程 |
+| 本地重命名识别与云端移动 | 已支持 |
+| 云盘容量、健康检查和告警 | 已支持 |
+| 云端迁移 | 后端 API 已支持，暂未提供专用 Web 页面 |
+| rclone remote 配置中心 | 已支持；复杂 OAuth 仍可能需要容器命令行 |
+| Docker、NAS、飞牛 fnOS 部署 | 已支持 |
+| 应用登录和多用户权限 | 暂未支持，仅适合可信内网 |
+
+## 文档导航
+
+- 用户手册：[简体中文](docs/USER_GUIDE.md) | [English](docs/USER_GUIDE.en.md)
+- [部署文档：本地、Docker、NAS 与飞牛 fnOS](DEPLOYMENT.md)
+- [运维建议](OPS.md)
+- [rclone 客户端示例](docs/rclone-client-examples.md)
+- [映射任务 API 示例](docs/manual-mapping-api-examples.md)
+- [开发执行状态](docs/EXECUTION_STATUS.md)
+
 ## 架构和端口
 
 服务组成：
@@ -524,6 +553,7 @@ docker compose logs -f backend
 
 ## 相关文档
 
+- 用户手册：`docs/USER_GUIDE.md`（简体中文）/ `docs/USER_GUIDE.en.md`（English）
 - 部署说明：`DEPLOYMENT.md`
 - 运维建议：`OPS.md`
 - rclone 客户端示例：`docs/rclone-client-examples.md`
