@@ -60,6 +60,13 @@ body {
   color: #fff;
 }
 
+.sidebar__logo img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .sidebar__title {
   font-size: 18px;
   font-weight: 700;

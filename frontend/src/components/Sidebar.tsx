@@ -17,7 +17,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar__brand">
-        <div className="sidebar__logo">ED</div>
+        <div className="sidebar__logo"><img src="https://ik.imagekit.io/everlearn/logos/everDrive.png?tr=w-72,h-72,f-auto,q-auto" alt="everDrive" /></div>
         <div>
           <div className="sidebar__title">everDrive</div>
           <div className="sidebar__subtitle">运维控制台</div>
