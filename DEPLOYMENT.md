@@ -6,7 +6,7 @@
 
 ## 1. 环境变量说明
 
-后端环境变量文件：`/home/ubuntu/everDrive/.env`
+后端环境变量文件：`<项目根目录>/.env`
 
 ### 1.1 应用基础
 - `NODE_ENV`: `development | test | production`
@@ -110,7 +110,7 @@ sudo systemctl status rclone-rcd
 
 ## 2.4 后端部署
 ```bash
-cd /home/ubuntu/everDrive
+cd ~/everdrive
 npm ci
 cp .env.example .env
 # 编辑 .env：DATABASE_URL、RCLONE_RCD_*、ENCRYPTION_MASTER_KEY
@@ -130,9 +130,9 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/everDrive
-EnvironmentFile=/home/ubuntu/everDrive/.env
-ExecStart=/usr/bin/node /home/ubuntu/everDrive/dist/server.js
+WorkingDirectory=/opt/everdrive
+EnvironmentFile=/opt/everdrive/.env
+ExecStart=/usr/bin/node /opt/everdrive/dist/server.js
 Restart=always
 RestartSec=5
 
@@ -142,7 +142,7 @@ WantedBy=multi-user.target
 
 ## 2.5 前端部署（分离）
 ```bash
-cd /home/ubuntu/everDrive/frontend
+cd ~/everdrive/frontend
 npm ci
 cp .env.example .env
 npm run build
@@ -156,7 +156,7 @@ server {
   listen 80;
   server_name your-domain.com;
 
-  root /home/ubuntu/everDrive/frontend/dist;
+  root /opt/everdrive/frontend/dist;
   index index.html;
 
   location / {
@@ -177,11 +177,11 @@ server {
 ## 3. Docker 部署说明
 
 ## 3.1 已提供文件
-- `/home/ubuntu/everDrive/docker-compose.yml`
-- `/home/ubuntu/everDrive/Dockerfile.backend`
-- `/home/ubuntu/everDrive/docker/backend-entrypoint.sh`
-- `/home/ubuntu/everDrive/frontend/Dockerfile.frontend`
-- `/home/ubuntu/everDrive/frontend/docker/nginx.default.conf`
+- `docker-compose.yml`
+- `Dockerfile.backend`
+- `docker/backend-entrypoint.sh`
+- `frontend/Dockerfile.frontend`
+- `frontend/docker/nginx.default.conf`
 
 ## 3.2 一键启动（含 mysql + rclone + backend + frontend）
 先在 `.env` 中设置 NAS 数据根目录：
@@ -195,7 +195,7 @@ DOCKER_RCLONE_RCD_URL=http://rclone:5572
 `DATA_ROOT` 会只读挂载到 backend 和 rclone 的 `/data`。映射任务必须使用容器内路径，例如 `/data/photos`。加密同步产生的临时文件通过共享的 `everdrive_tmp` 数据卷交给 rclone 上传。该卷在 backend 和 rclone 中均为可写，用于远程 SMB/SFTP 来源启用加密时的临时下载；请确保磁盘空间足够。
 
 ```bash
-cd /home/ubuntu/everDrive
+cd ~/everdrive
 docker compose build
 docker compose up -d
 ```
@@ -257,7 +257,7 @@ docker compose down -v
 
 后端：
 ```bash
-cd /home/ubuntu/everDrive
+cd ~/everdrive
 npm install
 cp .env.example .env
 npm run prisma:generate
@@ -267,7 +267,7 @@ npm run dev
 
 前端：
 ```bash
-cd /home/ubuntu/everDrive/frontend
+cd ~/everdrive/frontend
 npm install
 cp .env.example .env
 npm run dev

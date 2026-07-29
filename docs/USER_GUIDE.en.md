@@ -291,4 +291,9 @@ Each file is stored completely on one remote and is not divided into chunks.
 - Operations guidance: [OPS.md](../OPS.md)
 - rclone client examples: [rclone-client-examples.md](rclone-client-examples.md)
 - Mapping-task API examples: [manual-mapping-api-examples.md](manual-mapping-api-examples.md)
-- Current development status: [EXECUTION_STATUS.md](EXECUTION_STATUS.md)
+
+### 4.14 Data Recovery and Replica Repair
+
+The Data Recovery page restores complete files distributed across split-storage remotes into a server-local directory while recreating their original paths. Existing destination files are skipped by default; overwrite requires an explicit selection and confirmation. Each operation handles up to 200 filtered files, and encrypted mappings are decrypted with the server's current master key.
+
+The Replica Repair page retries failed or pending cloud copies for redundant mappings. It does not restore files to a local directory. Use Data Recovery or Encryption Recovery when local files are lost.

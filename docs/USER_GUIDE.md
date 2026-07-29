@@ -292,4 +292,9 @@ Web“rclone 配置”页面支持：
 - 运维建议：[OPS.md](../OPS.md)
 - rclone 客户端示例：[rclone-client-examples.md](rclone-client-examples.md)
 - 映射任务 API 示例：[manual-mapping-api-examples.md](manual-mapping-api-examples.md)
-- 当前开发状态：[EXECUTION_STATUS.md](EXECUTION_STATUS.md)
+
+### 4.14 数据恢复与副本修复
+
+“数据恢复”页面用于将容量分片映射中分布在不同云盘的完整文件，按照原始目录结构恢复到服务器目录。默认跳过目标目录中已存在的同名文件；只有明确选择覆盖并确认后才会替换。每次最多处理当前筛选结果中的 200 个文件，加密映射会使用服务器当前主密钥自动解密。
+
+“副本修复”页面用于补齐多云冗余任务中失败或待处理的云端副本，它不会把文件恢复回本地目录。本地文件丢失时应使用“数据恢复”或“加密恢复”。

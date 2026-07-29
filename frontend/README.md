@@ -7,7 +7,7 @@
 
 ## Run
 ```bash
-cd /home/ubuntu/everDrive/frontend
+cd everdrive/frontend
 npm install
 cp .env.example .env
 npm run dev
