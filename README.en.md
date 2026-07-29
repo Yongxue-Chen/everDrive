@@ -8,6 +8,14 @@
 
 everDrive is a self-hosted "local folder → multi-cloud storage" sync and management system built on top of [rclone](https://rclone.org/). It turns hand-rolled cron jobs and rclone CLI scripts into a full application with a web UI, a job queue, automatic scheduling, multi-cloud redundancy, and client-side encryption.
 
+## Positioning: local storage is primary, the cloud is just a backup
+
+In everDrive's model, **the local directory is the primary copy of your data — the cloud remotes are only an off-site disaster-recovery backup**, there to protect you if the local disk fails, files get deleted by mistake, or the NAS itself has a problem.
+
+- For day-to-day access and file syncing, we recommend reaching the local directory directly over a LAN or a mesh network like [Tailscale](https://tailscale.com/), rather than routing through the cloud — lower latency, and no dependency on a cloud provider's bandwidth or throttling.
+- The cloud copies only really matter when the local directory has a problem: everDrive's redundancy recovery, encrypted-file recovery, and data recovery pages restore the cloud-held copies back to local disk, preserving the original directory layout.
+- Because of this positioning, everDrive is best installed directly on a **NAS**, or on a dedicated **management server** that connects to the local directories of other devices on the LAN (another NAS, an SMB/SFTP source, etc.) and backs all of them up to the cloud — not as a cloud-first drive client.
+
 ## Why everDrive
 
 - **More than a sync script**: manage cloud remotes, mapping tasks, capacity thresholds, job status, and system settings from a web UI — no need to memorize CLI flags.
