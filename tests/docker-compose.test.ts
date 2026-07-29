@@ -8,9 +8,10 @@ async function readCompose(): Promise<string> {
 describe('docker compose deployment contract', () => {
   it('mounts the host data directory into backend and rclone at the same path', async () => {
     const compose = await readCompose();
-    const sharedDataMount = '- "${DATA_ROOT:-./data}:/data:ro"';
-
-    expect(compose.split(sharedDataMount)).toHaveLength(3);
+    const readonlyDataMount = '- "${DATA_ROOT:-./data}:/data:ro"';
+    const writableDataMount = '- "${DATA_ROOT:-./data}:/data:rw"';
+    expect(compose.split(readonlyDataMount)).toHaveLength(2);
+    expect(compose).toContain(writableDataMount);
     expect(compose).toContain('LOCAL_PATH_ALLOWED_ROOTS: ${DOCKER_LOCAL_PATH_ALLOWED_ROOTS:-/data}');
   });
 

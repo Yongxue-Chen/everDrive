@@ -10,6 +10,7 @@ import { RedundancyRecoveryPage } from './pages/RedundancyRecoveryPage';
 import { OperationLogsPage } from './pages/OperationLogsPage';
 import { SystemMetricsPage } from './pages/SystemMetricsPage';
 import { EncryptionRecoveryPage } from './pages/EncryptionRecoveryPage';
+import { DataRecoveryPage } from './pages/DataRecoveryPage';
 
 export const router = createBrowserRouter([
   {
@@ -22,6 +23,7 @@ export const router = createBrowserRouter([
       { path: 'cloud-remotes', element: <CloudRemotesPage /> },
       { path: 'rclone-config', element: <RcloneConfigPage /> },
       { path: 'cloud-migration', element: <CloudMigrationPage /> },
+      { path: 'data-recovery', element: <DataRecoveryPage /> },
       { path: 'redundancy-recovery', element: <RedundancyRecoveryPage /> },
       { path: 'encryption-recovery', element: <EncryptionRecoveryPage /> },
       { path: 'operation-logs', element: <OperationLogsPage /> },

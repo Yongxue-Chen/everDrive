@@ -1,50 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { JobStatusPanel } from '../components/JobStatusPanel';
-import { RemoteCard } from '../components/RemoteCard';
-import { StatusCard } from '../components/StatusCard';
-import { fetchCloudView, fetchWorkspaceView } from '../lib/api';
-import { formatGigabytes } from '../lib/format';
-
-export function DashboardPage() {
-  const workspaceQuery = useQuery({ queryKey: ['workspace-view'], queryFn: fetchWorkspaceView, refetchInterval: 10000 });
-  const cloudQuery = useQuery({ queryKey: ['cloud-view'], queryFn: fetchCloudView, refetchInterval: 10000 });
-
-  const workspaceCount = workspaceQuery.data?.items.length ?? 0;
-  const warningRemotes = cloudQuery.data?.items.filter((item) => item.warning_flag).length ?? 0;
-  const totalSize = workspaceQuery.data?.items.reduce((acc, item) => acc + Number(item.total_size), 0) ?? 0;
-
-  return (
-    <div className="page">
-      <header className="page__header">
-        <h1>详情看板</h1>
-        <button onClick={() => Promise.all([workspaceQuery.refetch(), cloudQuery.refetch()])}>刷新数据</button>
-      </header>
-
-      <section className="status-grid">
-        <StatusCard title="工作空间数" value={String(workspaceCount)} tone="neutral" meta="按映射任务聚合" />
-        <StatusCard title="数据总量" value={formatGigabytes(totalSize)} tone="good" meta="本地已索引体积" />
-        <StatusCard title="告警云盘" value={String(warningRemotes)} tone={warningRemotes ? 'warn' : 'good'} meta="容量或健康状态异常" />
-      </section>
-
-      <section className="cards-grid">
-        {(cloudQuery.data?.items ?? []).map((item) => (
-          <RemoteCard
-            key={item.remote_id}
-            name={item.remote_name}
-            healthStatus={item.health_status}
-            usagePercent={item.usage_percent}
-            usedCapacity={item.used_capacity}
-            remainingCapacity={item.remaining_capacity}
-            warningFlag={item.warning_flag}
-          />
-        ))}
-      </section>
-
-      <JobStatusPanel
-        items={workspaceQuery.data?.items ?? []}
-        isLoading={workspaceQuery.isLoading}
-        error={workspaceQuery.isError}
-      />
-    </div>
-  );
-}
+import { Link } from 'react-router-dom';
+import { fetchCloudView, fetchSettings, fetchWorkspaceView } from '../lib/api';
+import { formatDate, formatGigabytes } from '../lib/format';
+import type { WorkspaceItem } from '../lib/types';
+const mode=(x:WorkspaceItem)=>x.redundancy_enabled?'多云冗余':x.replica_count>1?'容量分片':'单云同步';
+const currentState=(x:WorkspaceItem):[string,string]=>x.attention_reasons.length?['需要处理','bad']:x.pending_change_count>0?[`${x.pending_change_count} 个变化等待下次同步`,'neutral']:x.latest_sync_status?['当前已是最新','good']:['等待首次同步','neutral'];
+const lastResult=(s:string|null):[string,string]=>s==='success'?['上次同步成功','good']:s==='failed'?['上次同步失败','bad']:s==='running'?['正在同步','warn']:s==='queued'?['同步已排队','warn']:['尚未同步','neutral'];
+function nextSyncAt(items:WorkspaceItem[],intervalSeconds:number){const latest=Math.max(...items.map(x=>x.latest_sync_finished_at?new Date(x.latest_sync_finished_at).getTime():0),0);const interval=Math.max(1,intervalSeconds)*1000;let next=latest?latest+interval:Date.now()+interval;while(next<=Date.now())next+=interval;return new Date(next).toISOString();}
+const reasonLink=(reason:string)=>reason.includes('云盘')||reason.includes('无法连接')||reason.includes('空间已满')||reason.includes('已停用')||reason.includes('容量或连接')?['/cloud-remotes','查看云盘']:['/operation-logs','查看活动记录'];
+export function DashboardPage(){const w=useQuery({queryKey:['workspace-view'],queryFn:fetchWorkspaceView,refetchInterval:10000});const c=useQuery({queryKey:['cloud-view'],queryFn:fetchCloudView,refetchInterval:10000});const settings=useQuery({queryKey:['settings'],queryFn:fetchSettings});const items=w.data?.items??[];const issues=items.filter(x=>x.attention_reasons.length>0);const healthy=items.length>0&&!issues.length;const total=items.reduce((a,x)=>a+Number(x.total_size),0);const interval=settings.data?.item.values.defaultScanIntervalSeconds??900;const next=nextSyncAt(items,interval);const latest=[...items].filter(x=>x.latest_sync_finished_at).sort((a,b)=>new Date(b.latest_sync_finished_at!).getTime()-new Date(a.latest_sync_finished_at!).getTime())[0];return <div className="page"><header className="page__header dashboard-hero"><div><span className="eyebrow">概览</span><h1>{healthy?'文件保护运行正常':'有内容需要关注'}</h1><p className="muted">正常等待同步不会列入需要关注；这里只提示确实需要人工处理的问题。</p></div><Link className="button-link button-primary" to="/mapping-tasks">+ 新建映射</Link></header><section className="overview-strip"><div className="overview-message"><strong>{healthy?'没有需要人工处理的问题':'发现需要人工处理的问题'}</strong><span>{items.length?`当前管理 ${items.length} 个映射，共 ${formatGigabytes(total)} 数据。`:'创建第一个映射，开始保护你的文件。'}</span></div><div className="overview-stat"><span>最近一次同步结果</span><b className={`text-${lastResult(latest?.latest_sync_status??null)[1]}`}>{lastResult(latest?.latest_sync_status??null)[0]}</b><small>{latest?.latest_sync_finished_at?formatDate(latest.latest_sync_finished_at):'暂无同步记录'}</small></div><div className="overview-stat"><span>预计下次自动同步</span><b>{formatDate(next)}</b><small>每 {Math.round(interval/60)} 分钟检查一次</small></div><div className="overview-stat"><span>需要关注</span><b>{issues.length}</b><small>仅统计需人工处理的问题</small></div></section><section className="dashboard-grid"><div className="panel"><div className="panel__head"><div><h3>我的映射</h3><p className="muted">上次同步结果与当前状态分别显示。</p></div><Link to="/mapping-tasks">管理映射</Link></div><div className="mapping-cards">{items.map(x=>{const [result,resultTone]=lastResult(x.latest_sync_status);const [state,stateTone]=currentState(x);return <article className="mapping-summary" key={x.mapping_task_id}><div className="mapping-summary__head"><div><h4>{x.name}</h4><p>{x.local_path} → {x.remotes.map(r=>r.display_name).join('、')||'尚未绑定云盘'}</p></div><div className="badge-stack"><span className={`badge badge--${resultTone}`}>{result}</span><span className={`badge badge--${stateTone}`}>{state}</span></div></div>{x.attention_reasons.length?<div className="mapping-reasons">{x.attention_reasons.map(r=><span key={r}>{r}</span>)}</div>:null}<div className="mapping-summary__meta"><span><small>上次尝试时间</small><b>{x.latest_sync_finished_at?formatDate(x.latest_sync_finished_at):'尚未同步'}</b></span><span><small>上次成功时间</small><b>{x.last_sync_at?formatDate(x.last_sync_at):'尚无成功记录'}</b></span><span><small>预计下次同步</small><b>{formatDate(next)}</b></span><span><small>模式与文件</small><b>{mode(x)} · {x.file_count} 个</b></span></div></article>})}</div></div><aside className="dashboard-aside"><section className="panel"><div className="panel__head"><h3>需要关注</h3></div>{issues.length?issues.flatMap(x=>x.attention_reasons.map(reason=>{const [to,label]=reasonLink(reason);return <div className="attention-item" key={`${x.mapping_task_id}-${reason}`}><strong>{x.name}</strong><p>{reason}</p><Link to={to}>{label}</Link></div>})):<div className="empty-state empty-state--compact"><strong>没有待处理问题</strong><p>等待下一次自动同步属于正常状态。</p></div>}</section><section className="panel"><div className="panel__head"><h3>最近同步结果</h3><Link to="/operation-logs">查看活动</Link></div>{[...items].sort((a,b)=>(b.latest_sync_finished_at??'').localeCompare(a.latest_sync_finished_at??'')).slice(0,5).map(x=><div className="activity-item" key={x.mapping_task_id}><span className={`activity-dot activity-dot--${lastResult(x.latest_sync_status)[1]}`}/><div><strong>{x.name} · {lastResult(x.latest_sync_status)[0]}</strong><p>{x.latest_sync_finished_at?formatDate(x.latest_sync_finished_at):'等待首次同步'}</p></div></div>)}</section></aside></section></div>}

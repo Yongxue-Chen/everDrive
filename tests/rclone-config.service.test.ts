@@ -105,8 +105,8 @@ describe('rclone config api', () => {
     app.use(createRcloneConfigRouter(new RcloneConfigService(client, async () => null)));
     app.use(errorHandler);
 
-    await request(app).post('/api/rclone-config/remotes').send({ name: '飞牛 SMB', type: 'smb', parameters: { host: '100.64.0.1' } }).expect(201);
-    expect(client.createRemoteConfig).toHaveBeenCalledWith({ name: '飞牛 SMB', type: 'smb', parameters: { host: '100.64.0.1' } });
+    await request(app).post('/api/rclone-config/remotes').send({ name: '飞牛 SMB', type: 'smb', parameters: { host: '100.100.100.1' } }).expect(201);
+    expect(client.createRemoteConfig).toHaveBeenCalledWith({ name: '飞牛 SMB', type: 'smb', parameters: { host: '100.100.100.1' } });
   });
 
   it('rejects invalid remote names', async () => {
@@ -132,13 +132,13 @@ describe('rclone config api', () => {
 
   it('keeps connection identity fields visible even when rclone marks them sensitive', async () => {
     const client = createClient({
-      getRemoteConfig: vi.fn(async () => ({ type: 'sftp', host: '100.122.105.120', user: 'backup', key_pem: 'private-key' })),
+      getRemoteConfig: vi.fn(async () => ({ type: 'sftp', host: '100.100.100.2', user: 'backup', key_pem: 'private-key' })),
       getConfigProviders: vi.fn(async () => ({ providers: [{ Prefix: 'sftp', Options: [
         { Name: 'host', Sensitive: true }, { Name: 'user', Sensitive: true }, { Name: 'key_pem', Sensitive: true }
       ] }] }))
     });
     const service = new RcloneConfigService(client, async () => null);
-    await expect(service.getRemote('demo')).resolves.toMatchObject({ parameters: { host: '100.122.105.120', user: 'backup', key_pem: '' }, sensitiveFields: ['key_pem'] });
+    await expect(service.getRemote('demo')).resolves.toMatchObject({ parameters: { host: '100.100.100.2', user: 'backup', key_pem: '' }, sensitiveFields: ['key_pem'] });
   });
 
   it('audits remote configuration mutations without recording parameters', async () => {

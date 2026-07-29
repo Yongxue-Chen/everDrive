@@ -75,6 +75,11 @@ describe('DashboardService', () => {
     expect(response.items[2]?.sync_status).toBe('yellow');
     expect(response.items[0]?.replica_count).toBe(1);
     expect(response.items[0]?.total_size).toBe('500');
+    expect(response.items[0]?.latest_sync_status).toBe('success');
+    expect(response.items[1]?.latest_sync_status).toBe('failed');
+    expect(response.items[1]?.attention_reasons).toContain('上次同步失败');
+    expect(response.items[2]?.pending_change_count).toBe(1);
+    expect(response.items[2]?.attention_reasons).toContain('Drive C 存在容量或连接提醒');
   });
 
   it('builds cloud view and warning flags', async () => {

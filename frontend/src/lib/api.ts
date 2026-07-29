@@ -533,3 +533,7 @@ export async function listEncryptionRecoveryFiles(taskId: string, query = ''): P
 export function encryptionRecoveryDownloadUrl(fileId: string, remoteId: string): string {
   return `/api/encryption-recovery/files/${encodeURIComponent(fileId)}/download?remoteId=${encodeURIComponent(remoteId)}`;
 }
+
+export async function listDataRecoveryTasks():Promise<{items:import('./types.js').DataRecoveryTask[]}>{return requestJson('/api/data-recovery/tasks');}
+export async function listDataRecoveryFiles(taskId:string,query=''):Promise<{items:import('./types.js').DataRecoveryFile[]}>{const suffix=query?`?query=${encodeURIComponent(query)}`:'';return requestJson(`/api/data-recovery/tasks/${encodeURIComponent(taskId)}/files${suffix}`);}
+export async function runDataRecovery(taskId:string,payload:{destinationPath:string;query:string;conflictStrategy:'skip'|'overwrite'}):Promise<{summary:import('./types.js').DataRecoverySummary}>{return requestJsonWithBody(`/api/data-recovery/tasks/${encodeURIComponent(taskId)}/restore`,'POST',payload);}

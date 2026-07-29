@@ -66,6 +66,10 @@ export class DashboardService {
           })),
           sync_status: this.computeSyncStatus(task.remotes, latestSync?.status, statusCounts),
           last_sync_at: task.lastSuccessfulSyncAt?.toISOString() ?? null,
+          latest_sync_status: latestSync?.status ?? null,
+          latest_sync_finished_at: latestSync?.finishedAt?.toISOString() ?? null,
+          pending_change_count: statusCounts.changed + statusCounts.missing,
+          attention_reasons: this.buildAttentionReasons(task.remotes, latestSync?.status, statusCounts),
           encryption_enabled: task.encryptionEnabled,
           redundancy_enabled: task.redundancyEnabled,
           replica_count: task.remotes.length,
@@ -124,6 +128,20 @@ export class DashboardService {
         capacity_warning: CAPACITY_WARNING_RULES
       }
     };
+  }
+
+  private buildAttentionReasons(remotes: Array<{ remote: { displayName: string; healthStatus: string; isActive: boolean } }>, latestSyncStatus: string | undefined, scanStatusCounts: { error: number }): string[] {
+    const reasons: string[] = [];
+    if (remotes.length === 0) reasons.push("尚未绑定目标云盘");
+    if (latestSyncStatus === "failed") reasons.push("上次同步失败");
+    if (scanStatusCounts.error > 0) reasons.push(`有 ${scanStatusCounts.error} 个文件扫描失败`);
+    for (const item of remotes) {
+      if (!item.remote.isActive) reasons.push(`${item.remote.displayName} 已停用`);
+      else if (item.remote.healthStatus === "unavailable") reasons.push(`${item.remote.displayName} 无法连接`);
+      else if (item.remote.healthStatus === "full") reasons.push(`${item.remote.displayName} 空间已满`);
+      else if (item.remote.healthStatus === "warning") reasons.push(`${item.remote.displayName} 存在容量或连接提醒`);
+    }
+    return reasons;
   }
 
   private computeSyncStatus(

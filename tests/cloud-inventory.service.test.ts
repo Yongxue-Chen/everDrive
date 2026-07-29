@@ -290,7 +290,7 @@ describe('CloudInventoryService', () => {
       listRemotes: vi.fn(async () => [
         buildRemote({
           remoteName: 'myBlomp',
-          remoteRootPath: 'chandler.yx.chen@gmail.com',
+          remoteRootPath: 'user@example.com',
           totalCapacity: 0n,
           usedCapacity: 0n,
           reservedCapacity: 100n
@@ -308,7 +308,7 @@ describe('CloudInventoryService', () => {
     expect(cards[0]?.capacity.usedCapacityBytes).toBe('250');
     expect(cards[0]?.capacity.totalCapacityBytes).toBe('1000');
     expect(cards[0]?.capacity.remainingCapacityBytes).toBe('650');
-    expect(rclone.getAbout).toHaveBeenCalledWith('myBlomp:chandler.yx.chen@gmail.com');
+    expect(rclone.getAbout).toHaveBeenCalledWith('myBlomp:user@example.com');
   });
 
   it('marks remote usage as unavailable when rclone about is forbidden', async () => {

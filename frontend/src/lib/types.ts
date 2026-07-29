@@ -15,6 +15,10 @@ export type WorkspaceItem = {
   }>;
   sync_status: 'green' | 'yellow' | 'red';
   last_sync_at: string | null;
+  latest_sync_status: string | null;
+  latest_sync_finished_at: string | null;
+  pending_change_count: number;
+  attention_reasons: string[];
   encryption_enabled: boolean;
   redundancy_enabled: boolean;
   replica_count: number;
@@ -348,3 +352,7 @@ export type EncryptionRecoveryFile = { id: string; relativePath: string; fileSiz
 
 export type RcloneSourceOption = { name: string; type: 'smb' | 'sftp' };
 export type RcloneSourceBrowseItem = { name: string; path: string; isDirectory: boolean; sizeBytes: string };
+
+export type DataRecoveryTask={id:string;name:string;encryptionEnabled:boolean;fileCount:number};
+export type DataRecoveryFile={id:string;relativePath:string;fileSize:string;modifiedTime:string;source:{displayName:string;remotePath:string}|null};
+export type DataRecoverySummary={mappingTaskId:string;destinationPath:string;conflictStrategy:'skip'|'overwrite';selected:number;restored:number;skipped:number;failed:number;failures:Array<{relativePath:string;message:string}>};

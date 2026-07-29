@@ -51,6 +51,8 @@ import { RcloneSourceService } from './modules/source/rclone-source.service.js';
 import { createRcloneSourceRouter } from './modules/source/rclone-source.controller.js';
 import { createEncryptionRecoveryRouter } from './modules/encryption-recovery/encryption-recovery.controller.js';
 import { EncryptionRecoveryService } from './modules/encryption-recovery/encryption-recovery.service.js';
+import { createDataRecoveryRouter } from './modules/data-recovery/data-recovery.controller.js';
+import { DataRecoveryService } from './modules/data-recovery/data-recovery.service.js';
 
 async function bootstrap(): Promise<void> {
   const env = getEnv();
@@ -122,6 +124,7 @@ async function bootstrap(): Promise<void> {
   const localPathRouter = createLocalPathRouter(localPathService);
   const encryptionRecoveryService = new EncryptionRecoveryService(database.prisma, rcloneClient);
   const encryptionRecoveryRouter = createEncryptionRecoveryRouter(encryptionRecoveryService, auditService);
+  const dataRecoveryRouter = createDataRecoveryRouter(new DataRecoveryService(database.prisma, rcloneClient, env.LOCAL_PATH_ALLOWED_ROOTS.split(',')), auditService);
   const cloudTrashCleanupService = new CloudTrashCleanupService({
     settingsService,
     listActiveRemotes: async () => {
@@ -238,7 +241,8 @@ async function bootstrap(): Promise<void> {
     auditRouter,
     metricsRouter,
     localPathRouter,
-    encryptionRecoveryRouter
+    encryptionRecoveryRouter,
+    dataRecoveryRouter
   });
 
   const server = app.listen(env.PORT, () => {

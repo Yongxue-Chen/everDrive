@@ -1,0 +1,3 @@
+import fs from 'node:fs';import path from 'node:path';import{describe,expect,it}from'vitest';
+const root=process.cwd();const read=(p:string)=>fs.readFileSync(path.join(root,p),'utf8');
+describe('frontend data recovery',()=>{it('provides split recovery with safe conflict defaults',()=>{const page=read('frontend/src/pages/DataRecoveryPage.tsx');const router=read('frontend/src/router.tsx');const api=read('frontend/src/lib/api.ts');expect(page).toContain("useState(false)");expect(page).toContain("conflictStrategy:overwrite?'overwrite':'skip'");expect(page).toContain('默认跳过');expect(router).toContain("path: 'data-recovery'");expect(api).toContain('/api/data-recovery/tasks/');});});

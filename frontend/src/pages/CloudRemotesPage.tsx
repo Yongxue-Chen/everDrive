@@ -229,7 +229,7 @@ export function CloudRemotesPage() {
             <input
               value={form.remoteRootPath}
               onChange={(e) => setForm((prev) => ({ ...prev, remoteRootPath: e.target.value }))}
-              placeholder="例如 chandler.yx.chen@gmail.com"
+              placeholder="例如 user@example.com"
             />
           </label>
           <label>
@@ -249,7 +249,7 @@ export function CloudRemotesPage() {
         </div>
         <p className="muted">总容量手动维护；已用容量优先读取云盘真实已用；如果云盘接口不支持读取，会显示“不可读取”；自建云端回收站仅在镜像模式删除时生效。</p>
         <p className="muted">业务名称用于映射页面选择；底层 rclone remote 仅用于实际执行和健康检查。</p>
-        <p className="muted">“远端根路径 / 容器前缀”默认留空。只有像 Blomp 这类必须先进入容器路径的 remote 才需要填写，例如 `chandler.yx.chen@gmail.com`。</p>
+        <p className="muted">“远端根路径 / 容器前缀”默认留空。只有像 Blomp 这类必须先进入容器路径的 remote 才需要填写，例如 `user@example.com`。</p>
         <p className="muted">预留容量是给该云盘预先保留、不允许 everDrive 使用的空间，会直接从可用容量里扣掉。</p>
         {saveMutation.error ? <p className="error">保存业务云盘设置失败。</p> : null}
         {deleteMutation.error ? <p className="error">删除业务云盘失败。</p> : null}

@@ -26,6 +26,10 @@ export type WorkspaceViewItem = {
   }>;
   sync_status: SyncStatusColor;
   last_sync_at: string | null;
+  latest_sync_status: string | null;
+  latest_sync_finished_at: string | null;
+  pending_change_count: number;
+  attention_reasons: string[];
   encryption_enabled: boolean;
   redundancy_enabled: boolean;
   replica_count: number;

@@ -102,7 +102,7 @@ describe('RedundancyBackupService', () => {
         {
           remoteId: '11',
           remoteName: 'myBlomp',
-          remoteFs: 'myBlomp:chandler.yx.chen@gmail.com',
+          remoteFs: 'myBlomp:user@example.com',
           remotePath: 'testmucis/a.jpg'
         } as any
       ]
@@ -110,7 +110,7 @@ describe('RedundancyBackupService', () => {
 
     expect(copy).toHaveBeenCalledWith(
       expect.objectContaining({
-        dstFs: 'myBlomp:chandler.yx.chen@gmail.com',
+        dstFs: 'myBlomp:user@example.com',
         dstRemote: 'testmucis/a.jpg'
       })
     );

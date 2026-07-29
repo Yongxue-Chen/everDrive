@@ -11,7 +11,7 @@ describe('frontend encryption recovery', () => {
     expect(page).toContain('ENCRYPTION_MASTER_KEY');
     expect(page).toContain('解密下载');
     expect(router).toContain("path: 'encryption-recovery'");
-    expect(sidebar).toContain("to: '/encryption-recovery'");
+    expect(sidebar).toContain("['/encryption-recovery','加密恢复'");
     expect(api).toContain('/api/encryption-recovery/files/');
   });
 });
