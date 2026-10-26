@@ -37,6 +37,7 @@ describe('docker compose deployment contract', () => {
     expect(compose).toContain('"${MYSQL_BIND_ADDRESS:-127.0.0.1}:${MYSQL_PORT:-3306}:3306"');
     expect(compose).toContain('"${RCLONE_BIND_ADDRESS:-127.0.0.1}:${RCLONE_RCD_PORT:-5572}:5572"');
     expect(compose).toContain('"${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-43107}:43107"');
+    expect(compose).toContain('"${FRONTEND_BIND_ADDRESS:-0.0.0.0}:${FRONTEND_PORT:-43117}:80"');
   });
 
   it('pins rclone and waits for healthy dependencies', async () => {

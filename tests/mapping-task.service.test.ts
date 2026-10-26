@@ -305,4 +305,16 @@ describe('MappingTaskService', () => {
     const service = new MappingTaskService(createRepositoryStub({ findTaskById: vi.fn(async () => current) }));
     await expect(service.updateTask(100n, { sourceType: 'local' })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
+
+  it('exposes the full destination path for every bound remote', async () => {
+    const record = buildTaskRecord();
+    record.remotes[0]!.remoteBasePath = 'team/photos';
+    record.remotes[0]!.remote.remoteRootPath = 'user@example.com';
+    const service = new MappingTaskService(createRepositoryStub({ listTasks: vi.fn(async () => [record]) }));
+    const [item] = await service.listTasks();
+    expect(item?.remotes[0]).toMatchObject({
+      remoteRootPath: 'user@example.com',
+      destinationPath: 'driveA:/user@example.com/team/photos'
+    });
+  });
 });

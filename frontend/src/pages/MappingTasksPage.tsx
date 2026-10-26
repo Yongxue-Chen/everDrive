@@ -1,476 +1,339 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { LocalPathPicker } from '../components/LocalPathPicker';
-import { RcloneSourcePathPicker } from '../components/RcloneSourcePathPicker';
-import { MappingTable } from '../components/MappingTable';
-import {
-  createMappingTask,
-  deleteMappingTask,
-  fetchCloudRemotes,
-  fetchMappingTasks,
-  listRcloneSources,
-  testRcloneSource,
-  getApiMode,
-  runMappingTaskSync,
-  setMappingTaskActive,
-  updateMappingTask
-} from '../lib/api';
-import type { ApiMode, MappingTaskItem } from '../lib/types';
+import { FolderSync, LayoutList, Network, Pause, Pencil, Play, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { errorText, useFeedback } from '../components/feedback';
+import { MappingFlow } from '../components/MappingFlow';
+import { MappingWizard } from '../components/MappingWizard';
+import { SyncProgress } from '../components/SyncProgress';
+import { TopologyView } from '../components/TopologyView';
+import { Badge, Callout, EmptyState, Menu, PageHeader, Tabs } from '../components/ui';
+import { deleteMappingTask, fetchMappingTasks, fetchWorkspaceView, getApiMode, listRcloneSources, runMappingTaskSync, setMappingTaskActive } from '../lib/api';
+import { formatBytes, formatDate, formatRelative } from '../lib/format';
+import { flowFromMapping, syncModeLabels, type FlowModel } from '../lib/mapping-view';
+import type { ApiMode, MappingTaskItem, QueueJob, WorkspaceItem } from '../lib/types';
 
-type BindingForm = {
-  remoteId: string;
-  priority: number;
-  remoteBasePath: string;
-};
+type StatusFilter = 'all' | 'active' | 'inactive';
+type ViewMode = 'cards' | 'topology';
 
-type MappingFormState = {
-  name: string;
-  localPath: string;
-  sourceType: 'local' | 'rclone';
-  sourceRemoteName: string;
-  sourcePath: string;
-  syncMode: 'archive' | 'mirror';
-  encryptionEnabled: boolean;
-  redundancyEnabled: boolean;
-  splitEnabled: boolean;
-  expectedDataSizeBytes: string;
-  remoteBindings: BindingForm[];
-};
-
-const createEmptyForm = (): MappingFormState => ({
-  name: '',
-  localPath: '',
-  sourceType: 'local',
-  sourceRemoteName: '',
-  sourcePath: '',
-  syncMode: 'archive',
-  encryptionEnabled: false,
-  redundancyEnabled: false,
-  splitEnabled: false,
-  expectedDataSizeBytes: '',
-  remoteBindings: [{ remoteId: '', priority: 1, remoteBasePath: '' }]
-});
-
-function mapItemToForm(item: MappingTaskItem): MappingFormState {
-  return {
-    name: item.name,
-    localPath: item.local_path,
-    sourceType: item.source_type ?? 'local',
-    sourceRemoteName: item.source_remote_name ?? '',
-    sourcePath: item.source_path ?? '',
-    syncMode: item.sync_mode,
-    encryptionEnabled: item.encryption_enabled,
-    redundancyEnabled: item.redundancy_enabled,
-    splitEnabled: item.split_enabled,
-    expectedDataSizeBytes: '',
-    remoteBindings: item.remotes.map((remote, index) => ({
-      remoteId: remote.remoteId,
-      priority: index + 1,
-      remoteBasePath: remote.remoteBasePath
-    }))
-  };
+function syncState(item: MappingTaskItem, workspace?: WorkspaceItem): { label: string; tone: 'good' | 'warn' | 'bad' | 'neutral' } {
+  if (item.status === 'inactive') return { label: '已停用', tone: 'neutral' };
+  if (workspace?.attention_reasons.length) return { label: '需要处理', tone: 'bad' };
+  if (workspace?.latest_sync_status === 'running') return { label: '正在同步', tone: 'warn' };
+  if (workspace?.latest_sync_status === 'queued') return { label: '同步排队中', tone: 'warn' };
+  if (workspace?.latest_sync_status === 'failed') return { label: '上次同步失败', tone: 'bad' };
+  if (workspace && workspace.pending_change_count > 0) return { label: `${workspace.pending_change_count} 个变化待同步`, tone: 'neutral' };
+  if (item.last_sync_at) return { label: '已是最新', tone: 'good' };
+  return { label: '等待首次同步', tone: 'neutral' };
 }
 
 export function MappingTasksPage() {
   const queryClient = useQueryClient();
+  const { toast, confirm } = useFeedback();
   const [mode, setMode] = useState<ApiMode>(getApiMode());
-  const [editingItem, setEditingItem] = useState<MappingTaskItem | null>(null);
-  const [form, setForm] = useState<MappingFormState>(createEmptyForm());
-  const [isPathPickerOpen, setIsPathPickerOpen] = useState(false);
-  const [isRclonePathPickerOpen, setIsRclonePathPickerOpen] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [runSyncNotice, setRunSyncNotice] = useState<string | null>(null);
-  const query = useQuery({
-    queryKey: ['mapping-tasks'],
-    queryFn: fetchMappingTasks,
-    refetchInterval: 10000
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [editing, setEditing] = useState<MappingTaskItem | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [view, setView] = useState<ViewMode>(() => {
+    try {
+      return localStorage.getItem('everdrive_mapping_view') === 'topology' ? 'topology' : 'cards';
+    } catch {
+      return 'cards';
+    }
   });
-  const sourcesQuery = useQuery({ queryKey: ['rclone-sources'], queryFn: listRcloneSources });
-  const sourceTestMutation = useMutation({ mutationFn: () => testRcloneSource(form.sourceRemoteName, form.sourcePath) });
-  const remotesQuery = useQuery({
-    queryKey: ['cloud-remotes'],
-    queryFn: fetchCloudRemotes,
-    refetchInterval: 10000
-  });
+  const [runningJobs, setRunningJobs] = useState<Record<string, QueueJob[]>>({});
+
+  const query = useQuery({ queryKey: ['mapping-tasks'], queryFn: fetchMappingTasks, refetchInterval: 10000 });
+  const workspaceQuery = useQuery({ queryKey: ['workspace-view'], queryFn: fetchWorkspaceView, refetchInterval: 10000 });
+  const sourcesQuery = useQuery({ queryKey: ['rclone-sources'], queryFn: listRcloneSources, enabled: mode === 'live' });
 
   useEffect(() => {
-    const onModeChanged = (event: Event) => {
-      const custom = event as CustomEvent<ApiMode>;
-      setMode(custom.detail);
-    };
+    const onModeChanged = (event: Event) => setMode((event as CustomEvent<ApiMode>).detail);
     window.addEventListener('everdrive_api_mode_changed', onModeChanged);
     return () => window.removeEventListener('everdrive_api_mode_changed', onModeChanged);
   }, []);
 
-  const saveMutation = useMutation({
-    mutationFn: async (payload: MappingFormState) => {
-      const body = {
-        name: payload.name.trim(),
-        localPath: payload.localPath.trim(),
-        sourceType: payload.sourceType,
-        sourceRemoteName: payload.sourceType === 'rclone' ? payload.sourceRemoteName : null,
-        sourcePath: payload.sourceType === 'rclone' ? payload.sourcePath.trim() : '',
-        syncMode: payload.syncMode,
-        encryptionEnabled: payload.encryptionEnabled,
-        redundancyEnabled: payload.redundancyEnabled,
-        splitEnabled: payload.splitEnabled,
-        expectedDataSizeBytes: payload.expectedDataSizeBytes.trim() || undefined,
-        remoteBindings: payload.remoteBindings.map((binding) => ({
-          remoteId: binding.remoteId,
-          priority: Number(binding.priority),
-          remoteBasePath: binding.remoteBasePath.trim()
-        }))
-      };
-
-      if (editingItem) {
-        return updateMappingTask(editingItem.id, body);
-      }
-      return createMappingTask(body);
-    },
-    onSuccess: () => {
-      setSubmitError(null);
-      setRunSyncNotice(null);
-      setEditingItem(null);
-      setForm(createEmptyForm());
-      void queryClient.invalidateQueries({ queryKey: ['mapping-tasks'] });
-    },
-    onError: (error) => {
-      setSubmitError(error instanceof Error ? error.message : '保存映射失败');
+  useEffect(() => {
+    try {
+      localStorage.setItem('everdrive_mapping_view', view);
+    } catch {
+      // Remembering the view is a convenience only.
     }
-  });
+  }, [view]);
+
+  const refreshAll = () => {
+    void queryClient.invalidateQueries({ queryKey: ['mapping-tasks'] });
+    void queryClient.invalidateQueries({ queryKey: ['workspace-view'] });
+  };
 
   const activeMutation = useMutation({
-    mutationFn: async (item: MappingTaskItem) => setMappingTaskActive(item.id, item.status !== 'active'),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['mapping-tasks'] });
-    }
+    mutationFn: (item: MappingTaskItem) => setMappingTaskActive(item.id, item.status !== 'active'),
+    onSuccess: (_, item) => {
+      toast('success', item.status === 'active' ? `已停用「${item.name}」` : `已启用「${item.name}」`);
+      refreshAll();
+    },
+    onError: (error) => toast('error', '切换映射状态失败', errorText(error, ''))
   });
 
   const runSyncMutation = useMutation({
-    mutationFn: async (item: MappingTaskItem) => runMappingTaskSync(item.id),
-    onSuccess: (_, item) => {
-      setRunSyncNotice(`已开始同步“${item.name}”。系统会依次执行扫描、重命名检测和同步。`);
-      void queryClient.invalidateQueries({ queryKey: ['mapping-tasks'] });
+    mutationFn: (item: MappingTaskItem) => runMappingTaskSync(item.id),
+    onSuccess: (response, item) => {
+      setRunningJobs((current) => ({ ...current, [item.id]: response.jobs }));
+      toast('info', `已开始同步「${item.name}」`, '依次执行扫描、重命名检测和上传同步。');
     },
-    onError: () => {
-      setRunSyncNotice(null);
-    }
+    onError: (error) => toast('error', '手动触发同步失败', errorText(error, ''))
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (item: MappingTaskItem) => deleteMappingTask(item.id),
+    mutationFn: (item: MappingTaskItem) => deleteMappingTask(item.id),
     onSuccess: (_, item) => {
-      if (editingItem?.id === item.id) {
-        setEditingItem(null);
-        setForm(createEmptyForm());
-      }
-      void queryClient.invalidateQueries({ queryKey: ['mapping-tasks'] });
-    }
+      toast('success', `已删除映射「${item.name}」`, '云端已备份的文件保持不变。');
+      refreshAll();
+    },
+    onError: (error) => toast('error', '删除映射失败', errorText(error, ''))
   });
 
-  const resetForm = () => {
-    setEditingItem(null);
-    setSubmitError(null);
-    setRunSyncNotice(null);
-    setForm(createEmptyForm());
+  const items = query.data?.items ?? [];
+  const workspaceById = useMemo(() => new Map((workspaceQuery.data?.items ?? []).map((item) => [item.mapping_task_id, item])), [workspaceQuery.data]);
+  const sources = sourcesQuery.data?.items ?? [];
+
+  const visible = items.filter((item) => {
+    if (statusFilter !== 'all' && item.status !== statusFilter) return false;
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return true;
+    return [item.name, item.local_path, item.source_path, ...item.remotes.map((remote) => remote.displayName)].some((value) =>
+      value?.toLowerCase().includes(keyword)
+    );
+  });
+  const flows: FlowModel[] = visible.map((item) => flowFromMapping(item, sources));
+  const counts = {
+    all: items.length,
+    active: items.filter((item) => item.status === 'active').length,
+    inactive: items.filter((item) => item.status === 'inactive').length
   };
 
-  const startEdit = (item: MappingTaskItem) => {
-    setSubmitError(null);
-    setRunSyncNotice(null);
-    setEditingItem(item);
-    setForm(mapItemToForm(item));
+  const openCreate = () => {
+    setEditing(null);
+    setWizardOpen(true);
   };
 
-  const submit = () => {
-    setSubmitError(null);
-    setRunSyncNotice(null);
-    saveMutation.mutate(form);
+  const requestToggle = async (item: MappingTaskItem) => {
+    const deactivate = item.status === 'active';
+    const ok = await confirm({
+      title: deactivate ? `停用「${item.name}」？` : `启用「${item.name}」？`,
+      description: deactivate ? '停用后不再自动同步，已备份的文件不受影响，随时可以重新启用。' : '启用后会按计划自动同步。',
+      confirmLabel: deactivate ? '停用' : '启用'
+    });
+    if (ok) activeMutation.mutate(item);
   };
 
-  const pendingTaskId =
-    (activeMutation.isPending ? activeMutation.variables?.id : null) ??
-    (deleteMutation.isPending ? deleteMutation.variables?.id : null) ??
-    (runSyncMutation.isPending ? runSyncMutation.variables?.id : null);
+  const requestDelete = async (item: MappingTaskItem) => {
+    const ok = await confirm({
+      title: `删除映射「${item.name}」？`,
+      description: (
+        <>
+          <p>删除后将停止同步这个映射，并从列表中移除。</p>
+          <p>云端已经备份的文件不会被删除，需要时可以在云盘中手动清理。</p>
+        </>
+      ),
+      confirmLabel: '删除映射',
+      danger: true,
+      requireText: item.name
+    });
+    if (ok) deleteMutation.mutate(item);
+  };
 
   return (
     <div className="page">
-      <header className="page__header">
-        <div>
-          <h1>映射任务管理</h1>
-          <p className="muted">当前数据源：{mode === 'mock' ? '模拟数据' : '实时后端'}</p>
-        </div>
-        <div className="panel__actions">
-          <button onClick={resetForm}>新建映射</button>
-          <button
-            onClick={async () => {
-              await remotesQuery.refetch();
-              await query.refetch();
-            }}
-          >
-            刷新列表
-          </button>
-        </div>
-      </header>
+      <PageHeader
+        title="我的映射"
+        description="每个映射把一个来源目录备份到一个或多个云盘。"
+        actions={
+          <>
+            <button className="icon-button" aria-label="刷新" title="刷新" onClick={refreshAll}>
+              <RefreshCw size={16} />
+            </button>
+            <button className="button-primary" onClick={openCreate}>
+              <Plus size={16} />
+              新建映射
+            </button>
+          </>
+        }
+      />
 
       {mode === 'mock' ? (
-        <section className="panel panel--warning">
-          <strong>当前为模拟数据。</strong>
-          <p className="muted">列表和编辑操作只会在前端内存中模拟，不会写入真实后端。</p>
+        <Callout tone="warn" title="当前为模拟数据">
+          列表和编辑操作只在前端内存中模拟，不会写入真实后端。可在「设置」中切换为实时后端。
+        </Callout>
+      ) : null}
+
+      <div className="toolbar">
+        <label className="search-input">
+          <Search size={16} />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索映射、路径或云盘" />
+        </label>
+        <Tabs
+          value={statusFilter}
+          onChange={setStatusFilter}
+          items={[
+            { value: 'all', label: `全部 ${counts.all}` },
+            { value: 'active', label: `启用中 ${counts.active}` },
+            { value: 'inactive', label: `已停用 ${counts.inactive}` }
+          ]}
+        />
+        <div className="toolbar__spacer" />
+        <Tabs
+          value={view}
+          onChange={setView}
+          items={[
+            { value: 'cards', label: '流向', icon: <LayoutList size={15} /> },
+            { value: 'topology', label: '拓扑', icon: <Network size={15} /> }
+          ]}
+        />
+      </div>
+
+      {query.isLoading ? (
+        <div className="skeleton-list">
+          {[0, 1].map((key) => (
+            <div key={key} className="skeleton skeleton--card" />
+          ))}
+        </div>
+      ) : null}
+      {query.error ? (
+        <Callout tone="bad" title="加载映射失败">
+          {errorText(query.error, '请稍后重试。')}
+        </Callout>
+      ) : null}
+
+      {query.data && items.length === 0 ? (
+        <section className="panel">
+          <EmptyState
+            icon={<FolderSync size={28} />}
+            title="还没有映射"
+            description="创建第一个映射：选择要备份的目录，再选择备份到哪些云盘。"
+            action={
+              <button className="button-primary" onClick={openCreate}>
+                <Plus size={16} />
+                新建映射
+              </button>
+            }
+          />
         </section>
       ) : null}
 
-      <section className="mapping-layout">
-        <div className="mapping-layout__main">
-          {query.isLoading ? <p>正在加载映射任务...</p> : null}
-          {query.error ? <p className="error">加载映射任务失败。</p> : null}
-          {query.data ? (
-            <MappingTable
-              items={query.data.items}
-              pendingTaskId={pendingTaskId}
-              onEdit={startEdit}
-              onRunSync={(item) => {
-                runSyncMutation.mutate(item);
-              }}
-              onToggleActive={(item) => {
-                const nextAction = item.status === 'active' ? '停用' : '启用';
-                if (!window.confirm(`确认要${nextAction}映射“${item.name}”吗？`)) {
-                  return;
-                }
-                activeMutation.mutate(item);
-              }}
-              onDelete={(item) => {
-                if (!window.confirm(`确认删除映射“${item.name}”吗？`)) {
-                  return;
-                }
-                deleteMutation.mutate(item);
-              }}
-            />
-          ) : null}
-        </div>
+      {query.data && items.length > 0 && visible.length === 0 ? <p className="muted">没有符合筛选条件的映射。</p> : null}
 
-        <aside className="panel mapping-form">
-          <div className="panel__head">
-            <h3>{editingItem ? `编辑映射：${editingItem.name}` : '新建映射'}</h3>
-            {editingItem ? <button onClick={resetForm}>取消编辑</button> : null}
-          </div>
-          <p className="muted">自建云端回收站按云盘单独配置，仅在镜像模式删除时生效。</p>
+      {view === 'topology' && flows.length > 0 ? (
+        <section className="panel">
+          <TopologyView flows={flows} />
+        </section>
+      ) : null}
 
-          <div className="settings-grid mapping-form__grid">
-            <label>
-              映射名称
-              <input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="例如：照片归档" />
-            </label>
-            <label>
-              来源类型
-              <select value={form.sourceType} onChange={(e) => setForm((prev) => ({ ...prev, sourceType: e.target.value as 'local' | 'rclone', sourceRemoteName: '', sourcePath: '' }))}>
-                <option value="local">服务器本地目录</option><option value="rclone">局域网 SMB/SFTP（只读）</option>
-              </select>
-            </label>
-            {form.sourceType === 'local' ? <label>本地路径<div className="path-input"><input value={form.localPath} readOnly placeholder="请选择服务器目录" /><button onClick={() => setIsPathPickerOpen(true)}>选择目录</button></div></label> : <>
-              <label>来源 remote<select value={form.sourceRemoteName} onChange={(e) => setForm((prev) => ({ ...prev, sourceRemoteName: e.target.value, sourcePath: '' }))}><option value="">请选择 SMB/SFTP remote</option>{sourcesQuery.data?.items.map((item) => <option key={item.name} value={item.name}>{item.name} ({item.type})</option>)}</select></label>
-              {!sourcesQuery.isLoading && (sourcesQuery.data?.items.length ?? 0) === 0 ? <div className="panel panel--neutral"><strong>还没有可用的 SMB/SFTP 来源 remote</strong><p className="muted">先在 rclone 配置中新增 SMB/CIFS 或 SFTP remote，测试连接后再返回这里选择。</p><Link className="button-link" to="/rclone-config">前往 rclone 配置</Link></div> : null}
-              <label>
-                来源目录
-                <div className="path-input">
-                  <input value={form.sourcePath} onChange={(e) => setForm((prev) => ({ ...prev, sourcePath: e.target.value }))} placeholder="请输入或选择来源目录" />
-                  <button onClick={() => setIsRclonePathPickerOpen(true)} disabled={!form.sourceRemoteName}>选择目录</button>
-                </div>
-              </label>
-              <div className="panel panel--warning"><strong>来源严格只读</strong><p className="muted">archive 和 mirror 都不会修改 SMB/SFTP 来源；mirror 仅影响目标云盘。</p><button onClick={() => sourceTestMutation.mutate()} disabled={!form.sourceRemoteName || sourceTestMutation.isPending}>测试来源连接</button>{sourceTestMutation.data ? <p>连接正常。</p> : null}{sourceTestMutation.error ? <p className="error">连接失败。</p> : null}</div>
-            </>}
-            <label>
-              同步模式
-              <select value={form.syncMode} onChange={(e) => setForm((prev) => ({ ...prev, syncMode: e.target.value as 'archive' | 'mirror' }))}>
-                <option value="archive">归档</option>
-                <option value="mirror">镜像</option>
-              </select>
-            </label>
-            {form.splitEnabled ? (
-              <label>
-                预估数据量（字节）
-                <input
-                  value={form.expectedDataSizeBytes}
-                  onChange={(e) => setForm((prev) => ({ ...prev, expectedDataSizeBytes: e.target.value }))}
-                  placeholder="用于校验分片总容量是否足够"
-                />
-              </label>
-            ) : (
-              <div className="panel panel--neutral">
-                <strong>预估数据量</strong>
-                <p className="muted">仅在分片模式下使用，用于校验多个远端总可用容量是否足够。</p>
-              </div>
-            )}
-          </div>
+      {view === 'cards' ? (
+        <div className="mapping-list">
+          {visible.map((item, index) => {
+            const workspace = workspaceById.get(item.id);
+            const state = syncState(item, workspace);
+            const jobs = runningJobs[item.id];
+            const pending =
+              (activeMutation.isPending && activeMutation.variables?.id === item.id) || (deleteMutation.isPending && deleteMutation.variables?.id === item.id);
+            return (
+              <article key={item.id} className={`mapping-card ${item.status === 'inactive' ? 'mapping-card--inactive' : ''}`}>
+                <header className="mapping-card__head">
+                  <div className="mapping-card__title">
+                    <h3>{item.name}</h3>
+                    <div className="chip-row">
+                      <Badge tone={state.tone}>{state.label}</Badge>
+                      <span className="chip">{syncModeLabels[item.sync_mode]}</span>
+                      {item.encryption_enabled ? <span className="chip">已加密</span> : null}
+                      {workspace ? (
+                        <span className="chip">
+                          {workspace.file_count.toLocaleString()} 个文件 · {formatBytes(workspace.total_size)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="mapping-card__actions">
+                    <button
+                      className="button-primary"
+                      disabled={item.status !== 'active' || Boolean(jobs) || (runSyncMutation.isPending && runSyncMutation.variables?.id === item.id)}
+                      onClick={() => runSyncMutation.mutate(item)}
+                    >
+                      <Play size={15} />
+                      {jobs ? '同步中' : '立即同步'}
+                    </button>
+                    <button
+                      disabled={pending}
+                      onClick={() => {
+                        setEditing(item);
+                        setWizardOpen(true);
+                      }}
+                    >
+                      <Pencil size={15} />
+                      编辑
+                    </button>
+                    <Menu
+                      items={[
+                        {
+                          label: item.status === 'active' ? '停用' : '启用',
+                          icon: item.status === 'active' ? <Pause size={15} /> : <Play size={15} />,
+                          onSelect: () => void requestToggle(item),
+                          disabled: pending
+                        },
+                        { label: '删除映射', icon: <Trash2 size={15} />, danger: true, onSelect: () => void requestDelete(item), disabled: pending }
+                      ]}
+                    />
+                  </div>
+                </header>
 
-          <div className="mapping-form__toggles">
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={form.encryptionEnabled}
-                onChange={(e) => setForm((prev) => ({ ...prev, encryptionEnabled: e.target.checked }))}
-              />
-              启用加密
-            </label>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={form.redundancyEnabled}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    redundancyEnabled: e.target.checked,
-                    splitEnabled: e.target.checked ? false : prev.splitEnabled
-                  }))
-                }
-              />
-              启用冗余
-            </label>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={form.splitEnabled}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    splitEnabled: e.target.checked,
-                    redundancyEnabled: e.target.checked ? false : prev.redundancyEnabled
-                  }))
-                }
-              />
-              启用分片
-            </label>
-          </div>
+                <MappingFlow flow={flows[index]!} />
 
-          <section className="mapping-form__bindings">
-            <div className="panel__head">
-              <h4>远端绑定</h4>
-              <button
-                onClick={() =>
-                  setForm((prev) => ({
-                    ...prev,
-                    remoteBindings: [
-                      ...prev.remoteBindings,
-                      { remoteId: remotesQuery.data?.items[0]?.id ?? '', priority: prev.remoteBindings.length + 1, remoteBasePath: '' }
-                    ]
-                  }))
-                }
-              >
-                添加远端
-              </button>
-            </div>
-
-            {remotesQuery.isLoading ? <p>正在加载云盘列表...</p> : null}
-            {remotesQuery.error ? <p className="error">加载云盘列表失败。</p> : null}
-            {remotesQuery.data && remotesQuery.data.items.length === 0 ? (
-              <div className="panel panel--warning">
-                <strong>当前没有可绑定云盘。</strong>
-                <p className="muted">请先在“云盘列表”页新增业务云盘，然后再回来绑定。</p>
-              </div>
-            ) : null}
-
-            {form.remoteBindings.map((binding, index) => (
-              <div className="binding-row" key={`${index}-${binding.remoteId}`}>
-                <label>
-                  云盘
-                  <select
-                    value={binding.remoteId}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        remoteBindings: prev.remoteBindings.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, remoteId: e.target.value } : item
-                        )
-                      }))
-                    }
-                  >
-                    <option value="">请选择云盘</option>
-                    {(remotesQuery.data?.items ?? []).map((remote) => (
-                      <option key={remote.id} value={remote.id}>
-                        {remote.displayName}
-                      </option>
+                {workspace?.attention_reasons.length ? (
+                  <div className="reason-list">
+                    {workspace.attention_reasons.map((reason) => (
+                      <span key={reason}>{reason}</span>
                     ))}
-                  </select>
-                </label>
-                <label>
-                  绑定顺序
-                  <input
-                    type="number"
-                    min={1}
-                    value={binding.priority}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        remoteBindings: prev.remoteBindings.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, priority: Number(e.target.value) } : item
-                        )
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  远端子目录
-                  <input
-                    value={binding.remoteBasePath}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        remoteBindings: prev.remoteBindings.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, remoteBasePath: e.target.value } : item
-                        )
-                      }))
-                    }
-                    placeholder="例如：team/photos"
-                  />
-                </label>
-                <button
-                  onClick={() =>
-                    setForm((prev) => ({
-                      ...prev,
-                      remoteBindings: prev.remoteBindings.filter((_, itemIndex) => itemIndex !== index)
-                    }))
-                  }
-                  disabled={form.remoteBindings.length === 1}
-                >
-                  删除远端
-                </button>
-              </div>
-            ))}
-          </section>
+                  </div>
+                ) : null}
 
-          <div className="panel panel--neutral">
-            <p className="muted">提示：多个远端需要开启“冗余”或“分片”模式，且两者不能同时启用。</p>
-            <p className="muted">绑定顺序说明：单盘模式只取第一个；冗余模式第一个为主盘，其余为备份盘；分片模式仅作为展示顺序。</p>
-          </div>
-          {submitError ? <p className="error">{submitError}</p> : null}
-          {activeMutation.error ? <p className="error">切换映射状态失败。</p> : null}
-          {runSyncMutation.error ? <p className="error">手动触发同步失败。</p> : null}
-          {runSyncNotice ? <p>{runSyncNotice}</p> : null}
-          {deleteMutation.error ? <p className="error">删除映射失败。</p> : null}
+                <footer className="mapping-card__foot">
+                  <span title={formatDate(item.last_sync_at)}>上次成功同步：{formatRelative(item.last_sync_at)}</span>
+                  {workspace?.latest_sync_finished_at && workspace.latest_sync_finished_at !== item.last_sync_at ? (
+                    <span title={formatDate(workspace.latest_sync_finished_at)}>最近一次尝试：{formatRelative(workspace.latest_sync_finished_at)}</span>
+                  ) : null}
+                  {jobs ? (
+                    <SyncProgress
+                      jobs={jobs}
+                      onDone={(failed) => {
+                        setRunningJobs((current) => {
+                          const next = { ...current };
+                          delete next[item.id];
+                          return next;
+                        });
+                        toast(
+                          failed ? 'error' : 'success',
+                          failed ? `「${item.name}」同步失败` : `「${item.name}」同步完成`,
+                          failed ? '可在「活动记录」中查看详情。' : undefined
+                        );
+                        refreshAll();
+                      }}
+                    />
+                  ) : null}
+                </footer>
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
 
-          <div className="toggle-row">
-            <button onClick={submit} disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? '正在保存...' : editingItem ? '保存修改' : '创建映射'}
-            </button>
-            <button onClick={resetForm}>重置表单</button>
-          </div>
-        </aside>
-      </section>
-
-      <LocalPathPicker
-        isOpen={isPathPickerOpen}
-        selectedPath={form.localPath}
-        onClose={() => setIsPathPickerOpen(false)}
-        onSelect={(path) => setForm((prev) => ({ ...prev, localPath: path }))}
-      />
-
-      <RcloneSourcePathPicker
-        isOpen={isRclonePathPickerOpen}
-        remoteName={form.sourceRemoteName}
-        selectedPath={form.sourcePath}
-        onClose={() => setIsRclonePathPickerOpen(false)}
-        onSelect={(path) => setForm((prev) => ({ ...prev, sourcePath: path }))}
+      <MappingWizard
+        open={wizardOpen}
+        editing={editing}
+        onClose={() => setWizardOpen(false)}
+        onSaved={(name, isNew) => {
+          toast('success', isNew ? `已创建映射「${name}」` : `已保存「${name}」`);
+          refreshAll();
+        }}
       />
     </div>
   );

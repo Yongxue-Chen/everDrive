@@ -15,6 +15,12 @@ export type WorkspaceViewItem = {
   mapping_task_id: string;
   name: string;
   local_path: string;
+  source_type: string;
+  source_remote_name: string | null;
+  source_path: string;
+  sync_mode: string;
+  is_active: boolean;
+  split_enabled: boolean;
   remotes: Array<{
     remote_id: string;
     remote_name: string;
@@ -23,6 +29,7 @@ export type WorkspaceViewItem = {
     priority: number;
     health_status: string;
     is_active: boolean;
+    destination_path: string;
   }>;
   sync_status: SyncStatusColor;
   last_sync_at: string | null;

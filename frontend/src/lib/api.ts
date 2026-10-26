@@ -108,7 +108,9 @@ function buildRemoteView(
     role: mode,
     priority: binding.priority ?? index + 1,
     remoteBasePath: binding.remoteBasePath ?? '',
-    is_active: remote?.isActive ?? true,
+    isActive: remote?.isActive ?? true,
+    remoteRootPath: remote?.remoteRootPath ?? '',
+    destinationPath: `${remote?.remoteName ?? `remote-${binding.remoteId}`}:/${[remote?.remoteRootPath, binding.remoteBasePath].filter(Boolean).join('/')}`,
     healthStatus: remote?.healthStatus ?? 'healthy',
     availableCapacityBytes: remote?.capacity.remainingCapacityBytes ?? '0'
   };
@@ -275,9 +277,7 @@ export async function listRcloneRemoteOptions(): Promise<RcloneRemoteOptionsResp
     return {
       items: ['driveA', 'driveB', 'driveC'].map((remoteName) => {
         const bound = mockRemotes.items.find((item: RemotesListResponse['items'][number]) => item.remoteName === remoteName);
-        return bound
-          ? { remoteName, available: false, boundRemoteId: bound.id, boundDisplayName: bound.displayName }
-          : { remoteName, available: true };
+        return bound ? { remoteName, available: false, boundRemoteId: bound.id, boundDisplayName: bound.displayName } : { remoteName, available: true };
       })
     };
   }
@@ -331,10 +331,7 @@ export async function deleteCloudRemote(remoteId: string): Promise<DeleteRemoteR
   return requestJsonWithBody<DeleteRemoteResponse>(`/api/remotes/${remoteId}`, 'DELETE');
 }
 
-export async function updateRemoteCapacity(
-  remoteId: string,
-  payload: UpdateRemoteCapacityPayload
-): Promise<UpdateRemoteCapacityResponse> {
+export async function updateRemoteCapacity(remoteId: string, payload: UpdateRemoteCapacityPayload): Promise<UpdateRemoteCapacityResponse> {
   if (getApiMode() === 'mock') {
     await sleep(120);
     const index = mockRemotes.items.findIndex((item: RemotesListResponse['items'][number]) => item.id === remoteId);
@@ -346,10 +343,7 @@ export async function updateRemoteCapacity(
     const totalCapacityBytes = payload.totalCapacity ?? current.capacity.totalCapacityBytes;
     const reservedCapacityBytes = payload.reservedCapacity ?? current.capacity.reservedCapacityBytes;
     const usedCapacityBytes = current.capacity.usedCapacityBytes;
-    const remainingCapacityBytes = Math.max(
-      0,
-      Number(totalCapacityBytes) - Number(reservedCapacityBytes) - Number(usedCapacityBytes)
-    ).toString();
+    const remainingCapacityBytes = Math.max(0, Number(totalCapacityBytes) - Number(reservedCapacityBytes) - Number(usedCapacityBytes)).toString();
     const usagePercent = Number(totalCapacityBytes) > 0 ? (Number(usedCapacityBytes) / Number(totalCapacityBytes)) * 100 : 0;
 
     const updated = {
@@ -370,10 +364,7 @@ export async function updateRemoteCapacity(
   return requestJsonWithBody<UpdateRemoteCapacityResponse>(`/api/remotes/${remoteId}/capacity`, 'PATCH', payload);
 }
 
-export async function updateRemoteSettings(
-  remoteId: string,
-  payload: UpdateRemoteSettingsPayload
-): Promise<UpdateRemoteSettingsResponse> {
+export async function updateRemoteSettings(remoteId: string, payload: UpdateRemoteSettingsPayload): Promise<UpdateRemoteSettingsResponse> {
   if (getApiMode() === 'mock') {
     await sleep(120);
     const index = mockRemotes.items.findIndex((item: RemotesListResponse['items'][number]) => item.id === remoteId);
@@ -385,10 +376,7 @@ export async function updateRemoteSettings(
     const totalCapacityBytes = payload.totalCapacity ?? current.capacity.totalCapacityBytes;
     const reservedCapacityBytes = payload.reservedCapacity ?? current.capacity.reservedCapacityBytes;
     const usedCapacityBytes = current.capacity.usedCapacityBytes;
-    const remainingCapacityBytes = Math.max(
-      0,
-      Number(totalCapacityBytes) - Number(reservedCapacityBytes) - Number(usedCapacityBytes)
-    ).toString();
+    const remainingCapacityBytes = Math.max(0, Number(totalCapacityBytes) - Number(reservedCapacityBytes) - Number(usedCapacityBytes)).toString();
     const usagePercent = Number(totalCapacityBytes) > 0 ? (Number(usedCapacityBytes) / Number(totalCapacityBytes)) * 100 : 0;
 
     const updated = {
@@ -485,17 +473,26 @@ export async function listRcloneConfigRemotes(): Promise<{ items: import('./type
 export async function getRcloneRemote(name: string): Promise<{ item: import('./types.js').RcloneConfigRemote }> {
   return requestJson(`/api/rclone-config/remotes/${encodeURIComponent(name)}`);
 }
-export async function createRcloneRemote(payload: import('./types.js').RcloneConfigMutationPayload): Promise<{ item: import('./types.js').RcloneConfigRemote }> {
+export async function createRcloneRemote(
+  payload: import('./types.js').RcloneConfigMutationPayload
+): Promise<{ item: import('./types.js').RcloneConfigRemote }> {
   return requestJsonWithBody('/api/rclone-config/remotes', 'POST', payload);
 }
-export async function updateRcloneRemote(name: string, parameters: Record<string, import('./types.js').RcloneConfigValue>): Promise<{ item: import('./types.js').RcloneConfigRemote }> {
+export async function updateRcloneRemote(
+  name: string,
+  parameters: Record<string, import('./types.js').RcloneConfigValue>
+): Promise<{ item: import('./types.js').RcloneConfigRemote }> {
   return requestJsonWithBody(`/api/rclone-config/remotes/${encodeURIComponent(name)}`, 'PATCH', { parameters });
 }
 export async function deleteRcloneRemote(name: string): Promise<{ deleted: true }> {
   return requestJsonWithBody(`/api/rclone-config/remotes/${encodeURIComponent(name)}`, 'DELETE');
 }
-export async function updateRcloneRemoteWebUrl(name: string, webUrl: string | null): Promise<{ webUrl: string | null }> { return requestJsonWithBody(`/api/rclone-config/remotes/${encodeURIComponent(name)}/metadata`, 'PATCH', { webUrl }); }
-export async function runRcloneConfigFlow(payload: import('./types.js').RcloneConfigFlowPayload): Promise<{ item: Record<string, unknown> }> { return requestJsonWithBody('/api/rclone-config/flow', 'POST', payload); }
+export async function updateRcloneRemoteWebUrl(name: string, webUrl: string | null): Promise<{ webUrl: string | null }> {
+  return requestJsonWithBody(`/api/rclone-config/remotes/${encodeURIComponent(name)}/metadata`, 'PATCH', { webUrl });
+}
+export async function runRcloneConfigFlow(payload: import('./types.js').RcloneConfigFlowPayload): Promise<{ item: Record<string, unknown> }> {
+  return requestJsonWithBody('/api/rclone-config/flow', 'POST', payload);
+}
 export async function testRcloneRemote(name: string): Promise<{ online: boolean; error?: string }> {
   return requestJsonWithBody(`/api/rclone-config/remotes/${encodeURIComponent(name)}/test`, 'POST');
 }
@@ -506,7 +503,9 @@ export async function startCloudMigration(taskId: string, payload: import('./typ
 export async function fetchRedundancyOverview(taskId: string): Promise<{ item: import('./types.js').RedundancyOverview }> {
   return requestJson(`/api/mapping-tasks/${encodeURIComponent(taskId)}/redundancy`);
 }
-export async function retryFailedReplicas(taskId: string): Promise<{ summary: { mappingTaskId: string; retriedFiles: number; syncedRemotes: number; failedRemotes: number } }> {
+export async function retryFailedReplicas(
+  taskId: string
+): Promise<{ summary: { mappingTaskId: string; retriedFiles: number; syncedRemotes: number; failedRemotes: number } }> {
   return requestJsonWithBody(`/api/mapping-tasks/${encodeURIComponent(taskId)}/redundancy/retry-failed`, 'POST');
 }
 export async function fetchAuditLogs(query: import('./types.js').AuditLogQuery = {}): Promise<{ items: import('./types.js').AuditLogItem[] }> {
@@ -519,9 +518,16 @@ export async function fetchMetricsOverview(): Promise<{ metrics: import('./types
   return requestJson('/api/metrics/overview');
 }
 
-export async function listRcloneSources(): Promise<{ items: import('./types.js').RcloneSourceOption[] }> { return requestJson('/api/sources/rclone'); }
-export async function browseRcloneSource(name: string, path = ''): Promise<{ items: import('./types.js').RcloneSourceBrowseItem[] }> { const query=path?`?path=${encodeURIComponent(path)}`:''; return requestJson(`/api/sources/rclone/${encodeURIComponent(name)}/browse${query}`); }
-export async function testRcloneSource(name: string, path = ''): Promise<{ online: true }> { return requestJsonWithBody(`/api/sources/rclone/${encodeURIComponent(name)}/test`,'POST',{path}); }
+export async function listRcloneSources(): Promise<{ items: import('./types.js').RcloneSourceOption[] }> {
+  return requestJson('/api/sources/rclone');
+}
+export async function browseRcloneSource(name: string, path = ''): Promise<{ items: import('./types.js').RcloneSourceBrowseItem[] }> {
+  const query = path ? `?path=${encodeURIComponent(path)}` : '';
+  return requestJson(`/api/sources/rclone/${encodeURIComponent(name)}/browse${query}`);
+}
+export async function testRcloneSource(name: string, path = ''): Promise<{ online: true }> {
+  return requestJsonWithBody(`/api/sources/rclone/${encodeURIComponent(name)}/test`, 'POST', { path });
+}
 
 export async function listEncryptionRecoveryTasks(): Promise<{ items: import('./types.js').EncryptionRecoveryTask[] }> {
   return requestJson('/api/encryption-recovery/tasks');
@@ -534,6 +540,16 @@ export function encryptionRecoveryDownloadUrl(fileId: string, remoteId: string):
   return `/api/encryption-recovery/files/${encodeURIComponent(fileId)}/download?remoteId=${encodeURIComponent(remoteId)}`;
 }
 
-export async function listDataRecoveryTasks():Promise<{items:import('./types.js').DataRecoveryTask[]}>{return requestJson('/api/data-recovery/tasks');}
-export async function listDataRecoveryFiles(taskId:string,query=''):Promise<{items:import('./types.js').DataRecoveryFile[]}>{const suffix=query?`?query=${encodeURIComponent(query)}`:'';return requestJson(`/api/data-recovery/tasks/${encodeURIComponent(taskId)}/files${suffix}`);}
-export async function runDataRecovery(taskId:string,payload:{destinationPath:string;query:string;conflictStrategy:'skip'|'overwrite'}):Promise<{summary:import('./types.js').DataRecoverySummary}>{return requestJsonWithBody(`/api/data-recovery/tasks/${encodeURIComponent(taskId)}/restore`,'POST',payload);}
+export async function listDataRecoveryTasks(): Promise<{ items: import('./types.js').DataRecoveryTask[] }> {
+  return requestJson('/api/data-recovery/tasks');
+}
+export async function listDataRecoveryFiles(taskId: string, query = ''): Promise<{ items: import('./types.js').DataRecoveryFile[] }> {
+  const suffix = query ? `?query=${encodeURIComponent(query)}` : '';
+  return requestJson(`/api/data-recovery/tasks/${encodeURIComponent(taskId)}/files${suffix}`);
+}
+export async function runDataRecovery(
+  taskId: string,
+  payload: { destinationPath: string; query: string; conflictStrategy: 'skip' | 'overwrite' }
+): Promise<{ summary: import('./types.js').DataRecoverySummary }> {
+  return requestJsonWithBody(`/api/data-recovery/tasks/${encodeURIComponent(taskId)}/restore`, 'POST', payload);
+}

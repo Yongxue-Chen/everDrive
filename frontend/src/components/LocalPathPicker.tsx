@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { ChevronRight, CornerLeftUp, Folder, Home, RefreshCw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { browseLocalDirectories } from '../lib/api';
 
@@ -32,19 +33,38 @@ export function LocalPathPicker({ isOpen, selectedPath, onClose, onSelect }: Loc
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div className="modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-        <div className="panel__head">
+        <div className="modal__head">
           <h3>选择服务器目录</h3>
-          <button onClick={onClose}>关闭</button>
+          <button className="icon-button" aria-label="关闭" onClick={onClose}>
+            <X size={18} />
+          </button>
         </div>
 
-        <p className="mono muted">{query.data?.currentPath ?? currentPath ?? '正在加载根目录...'}</p>
+        <p className="picker__current mono">{query.data?.currentPath ?? currentPath ?? '正在加载根目录...'}</p>
 
-        <div className="toggle-row">
-          <button onClick={() => setCurrentPath(undefined)}>返回根目录</button>
-          <button onClick={() => setCurrentPath(query.data?.parentPath ?? undefined)} disabled={!query.data?.parentPath}>
-            返回上级
+        <div className="inline-actions">
+          <button onClick={() => setCurrentPath(undefined)}>
+            <Home size={15} />
+            根目录
           </button>
-          <button onClick={() => query.refetch()}>刷新当前目录</button>
+          <button onClick={() => setCurrentPath(query.data?.parentPath ?? undefined)} disabled={!query.data?.parentPath}>
+            <CornerLeftUp size={15} />
+            上级
+          </button>
+          <button onClick={() => query.refetch()}>
+            <RefreshCw size={15} />
+            刷新
+          </button>
+          <button
+            className="button-primary picker__pick"
+            disabled={!query.data?.currentPath}
+            onClick={() => {
+              onSelect(query.data!.currentPath);
+              onClose();
+            }}
+          >
+            选择当前目录
+          </button>
         </div>
 
         {query.isLoading ? <p>正在加载目录...</p> : null}
@@ -53,13 +73,17 @@ export function LocalPathPicker({ isOpen, selectedPath, onClose, onSelect }: Loc
         <div className="path-list">
           {(query.data?.items ?? []).map((item) => (
             <div className="path-list__item" key={item.path}>
-              <div>
-                <div>{item.name}</div>
-                <div className="mono muted">{item.path}</div>
-              </div>
-              <div className="panel__actions">
-                <button onClick={() => setCurrentPath(item.path)}>进入</button>
+              <button className="path-list__enter" onClick={() => setCurrentPath(item.path)} title="打开">
+                <Folder size={18} />
+                <span>
+                  <span>{item.name}</span>
+                  <span className="mono muted">{item.path}</span>
+                </span>
+                <ChevronRight size={16} />
+              </button>
+              <div className="inline-actions">
                 <button
+                  className="button-sm"
                   onClick={() => {
                     onSelect(item.path);
                     onClose();

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { ChevronRight, CornerLeftUp, Folder, Home, RefreshCw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { browseRcloneSource } from '../lib/api';
 
@@ -42,44 +43,68 @@ export function RcloneSourcePathPicker({ isOpen, remoteName, selectedPath, onClo
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div className="modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-        <div className="panel__head">
+        <div className="modal__head">
           <h3>选择来源目录 (SMB/SFTP: {remoteName})</h3>
-          <button onClick={onClose}>关闭</button>
+          <button className="icon-button" aria-label="关闭" onClick={onClose}>
+            <X size={18} />
+          </button>
         </div>
 
-        <p className="mono muted">/{currentPath || ''}</p>
+        <p className="picker__current mono">/{currentPath || ''}</p>
 
-        <div className="toggle-row">
-          <button onClick={() => setCurrentPath('')}>返回根目录</button>
-          <button onClick={() => setCurrentPath(parentPath ?? '')} disabled={parentPath === null}>
-            返回上级
+        <div className="inline-actions">
+          <button onClick={() => setCurrentPath('')}>
+            <Home size={15} />
+            根目录
           </button>
-          <button onClick={() => query.refetch()}>刷新当前目录</button>
+          <button onClick={() => setCurrentPath(parentPath ?? '')} disabled={parentPath === null}>
+            <CornerLeftUp size={15} />
+            上级
+          </button>
+          <button onClick={() => query.refetch()}>
+            <RefreshCw size={15} />
+            刷新
+          </button>
+          <button
+            className="button-primary picker__pick"
+            onClick={() => {
+              onSelect(currentPath);
+              onClose();
+            }}
+          >
+            选择当前目录
+          </button>
         </div>
 
         {query.isLoading ? <p>正在加载目录...</p> : null}
         {query.error ? <p className="error">加载目录失败。</p> : null}
 
         <div className="path-list">
-          {(query.data?.items ?? []).filter((item) => item.isDirectory).map((item) => (
-            <div className="path-list__item" key={item.path}>
-              <div>
-                <div>{item.name}</div>
-                <div className="mono muted">{item.path}</div>
-              </div>
-              <div className="panel__actions">
-                <button onClick={() => setCurrentPath(item.path)}>进入</button>
-                <button
-                  onClick={() => {
-                    onSelect(item.path);
-                    onClose();
-                  }}
-                >
-                  选择
+          {(query.data?.items ?? [])
+            .filter((item) => item.isDirectory)
+            .map((item) => (
+              <div className="path-list__item" key={item.path}>
+                <button className="path-list__enter" onClick={() => setCurrentPath(item.path)} title="打开">
+                  <Folder size={18} />
+                  <span>
+                    <span>{item.name}</span>
+                    <span className="mono muted">{item.path}</span>
+                  </span>
+                  <ChevronRight size={16} />
                 </button>
+                <div className="inline-actions">
+                  <button
+                    className="button-sm"
+                    onClick={() => {
+                      onSelect(item.path);
+                      onClose();
+                    }}
+                  >
+                    选择
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
 
         {query.data && query.data.items.filter((item) => item.isDirectory).length === 0 ? <p className="muted">当前目录下没有可选子目录。</p> : null}

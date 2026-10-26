@@ -17,7 +17,8 @@ describe('DashboardService', () => {
               remoteId: 11n,
               role: 'primary',
               priority: 1,
-              remote: { remoteName: 'driveA', displayName: 'Drive A', healthStatus: 'healthy', isActive: true }
+              remoteBasePath: 'photos',
+              remote: { remoteName: 'driveA', displayName: 'Drive A', remoteRootPath: 'backup', healthStatus: 'healthy', isActive: true }
             }
           ],
           lastSuccessfulSyncAt: new Date('2026-03-26T20:00:00.000Z')
@@ -74,6 +75,9 @@ describe('DashboardService', () => {
     expect(response.items[1]?.sync_status).toBe('red');
     expect(response.items[2]?.sync_status).toBe('yellow');
     expect(response.items[0]?.replica_count).toBe(1);
+    expect(response.items[0]?.remotes[0]?.destination_path).toBe('driveA:/backup/photos');
+    expect(response.items[1]?.remotes[0]?.destination_path).toBe('driveB:/');
+    expect(response.items[0]?.source_type).toBe('local');
     expect(response.items[0]?.total_size).toBe('500');
     expect(response.items[0]?.latest_sync_status).toBe('success');
     expect(response.items[1]?.latest_sync_status).toBe('failed');

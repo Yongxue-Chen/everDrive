@@ -4,15 +4,23 @@ export type WorkspaceTaskRow = {
   id: bigint;
   name: string;
   localPath: string;
+  sourceType?: string;
+  sourceRemoteName?: string | null;
+  sourcePath?: string;
+  syncMode?: string;
+  isActive?: boolean;
   encryptionEnabled: boolean;
   redundancyEnabled: boolean;
+  splitEnabled?: boolean;
   remotes: Array<{
     remoteId: bigint;
     role: string;
     priority: number;
+    remoteBasePath?: string;
     remote: {
       remoteName: string;
       displayName: string;
+      remoteRootPath?: string;
       healthStatus: string;
       isActive: boolean;
     };
@@ -71,17 +79,25 @@ export class DashboardRepository {
         id: true,
         name: true,
         localPath: true,
+        sourceType: true,
+        sourceRemoteName: true,
+        sourcePath: true,
+        syncMode: true,
+        isActive: true,
         encryptionEnabled: true,
         redundancyEnabled: true,
+        splitEnabled: true,
         mappingTaskRemotes: {
           select: {
             remoteId: true,
             role: true,
             priority: true,
+            remoteBasePath: true,
             remote: {
               select: {
                 remoteName: true,
                 displayName: true,
+                remoteRootPath: true,
                 healthStatus: true,
                 isActive: true
               }
@@ -114,15 +130,23 @@ export class DashboardRepository {
       id: row.id,
       name: row.name,
       localPath: row.localPath,
+      sourceType: row.sourceType,
+      sourceRemoteName: row.sourceRemoteName,
+      sourcePath: row.sourcePath,
+      syncMode: row.syncMode,
+      isActive: row.isActive,
       encryptionEnabled: row.encryptionEnabled,
       redundancyEnabled: row.redundancyEnabled,
+      splitEnabled: row.splitEnabled,
       remotes: row.mappingTaskRemotes.map((item) => ({
         remoteId: item.remoteId,
         role: item.role,
         priority: item.priority,
+        remoteBasePath: item.remoteBasePath,
         remote: {
           remoteName: item.remote.remoteName,
           displayName: item.remote.displayName,
+          remoteRootPath: item.remote.remoteRootPath,
           healthStatus: item.remote.healthStatus,
           isActive: item.remote.isActive
         }
