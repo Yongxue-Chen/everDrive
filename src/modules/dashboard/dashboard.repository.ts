@@ -179,22 +179,39 @@ export class DashboardRepository {
   }
 
   async listTaskScanStatusAggregates(): Promise<TaskScanStatusAggregateRow[]> {
-    const rows = await this.prisma.file.groupBy({
-      by: ['mappingTaskId', 'scanStatus'],
-      where: {
-        mappingTask: {
-          deletedAt: null
-        }
-      },
-      _count: {
-        _all: true
-      }
-    });
+    const rows = await this.prisma.$queryRaw<Array<{ mappingTaskId: bigint; scanStatus: ScanStatus; count: bigint }>>(Prisma.sql`
+      SELECT
+        f.mapping_task_id AS mappingTaskId,
+        f.scan_status AS scanStatus,
+        COUNT(*) AS count
+      FROM files f
+      INNER JOIN mapping_tasks mt ON mt.id = f.mapping_task_id
+      WHERE mt.deleted_at IS NULL
+        AND (
+          f.scan_status IN ('changed', 'error')
+          OR (
+            f.scan_status = 'missing'
+            AND mt.sync_mode = 'mirror'
+            AND EXISTS (
+              SELECT 1
+              FROM file_locations fl
+              INNER JOIN mapping_task_remotes mtr
+                ON mtr.mapping_task_id = f.mapping_task_id
+                AND mtr.remote_id = fl.remote_id
+              INNER JOIN cloud_remotes cr ON cr.id = fl.remote_id
+              WHERE fl.file_id = f.id
+                AND fl.sync_status IN ('synced', 'verifying')
+                AND cr.is_active = TRUE
+            )
+          )
+        )
+      GROUP BY f.mapping_task_id, f.scan_status
+    `);
 
     return rows.map((row) => ({
       mappingTaskId: row.mappingTaskId,
       scanStatus: row.scanStatus,
-      count: row._count._all
+      count: Number(row.count)
     }));
   }
 
