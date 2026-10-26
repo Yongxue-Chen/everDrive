@@ -6,7 +6,7 @@ import { errorText, useFeedback } from '../components/feedback';
 import { Badge, Callout, Drawer, EmptyState, Menu, PageHeader, PathText, ProgressBar } from '../components/ui';
 import { createCloudRemote, deleteCloudRemote, fetchCloudRemotes, listRcloneRemoteOptions, updateRemoteSettings } from '../lib/api';
 import { bytesToGigabyteInput, formatBytes, formatPercent, formatRelative, gigabytesToBytes } from '../lib/format';
-import { fallbackDestination, healthLabels, healthTone, roleLabels, type TargetRole } from '../lib/mapping-view';
+import { displaySourcePath, fallbackDestination, healthLabels, healthTone, roleLabels, type TargetRole } from '../lib/mapping-view';
 import type { RemotesListResponse } from '../lib/types';
 
 type RemoteItem = RemotesListResponse['items'][number];
@@ -200,8 +200,8 @@ export function CloudRemotesPage() {
                       <li key={mapping.mappingTaskId} className={mapping.mappingTaskActive ? '' : 'mapped-list__item--inactive'}>
                         <span className={`role-badge role-badge--${mapping.role}`}>{roleLabels[mapping.role as TargetRole] ?? mapping.role}</span>
                         <Link to="/mapping-tasks">{mapping.mappingTaskName}</Link>
-                        <span className="mono muted mapped-list__path" title={mapping.localPath}>
-                          {mapping.localPath}
+                        <span className="mono muted mapped-list__path" title={displaySourcePath(mapping.localPath)}>
+                          {displaySourcePath(mapping.localPath)}
                         </span>
                       </li>
                     ))}

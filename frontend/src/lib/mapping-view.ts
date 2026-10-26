@@ -7,7 +7,15 @@ export type FlowSource = {
   kind: 'local' | 'rclone';
   title: string;
   path: string;
+  /** One-line form for compact places: `/data/photos` or `nas:/photos`. */
+  short: string;
 };
+
+/** Turns the internal `rclone://nas/photos` source path into the readable `nas:/photos`. */
+export function displaySourcePath(localPath: string): string {
+  const match = /^rclone:\/\/([^/]+)\/?(.*)$/.exec(localPath);
+  return match ? `${match[1]}:/${match[2]}` : localPath;
+}
 
 export type FlowTarget = {
   remoteId: string;
@@ -103,13 +111,16 @@ export function describeSource(
 ): FlowSource {
   if (item.source_type === 'rclone' && item.source_remote_name) {
     const type = sources.find((source) => source.name === item.source_remote_name)?.type;
+    const path = `/${(item.source_path ?? '').replace(/^\/+/, '')}`;
     return {
       kind: 'rclone',
       title: `${item.source_remote_name}${type ? `（${type.toUpperCase()}）` : ''}`,
-      path: `/${(item.source_path ?? '').replace(/^\/+/, '')}`
+      path,
+      short: `${item.source_remote_name}:${path}`
     };
   }
-  return { kind: 'local', title: '服务器本地目录', path: item.local_path };
+  const path = displaySourcePath(item.local_path);
+  return { kind: path === item.local_path ? 'local' : 'rclone', title: path === item.local_path ? '服务器本地目录' : '局域网来源', path, short: path };
 }
 
 export function flowFromMapping(item: MappingTaskItem, sources: RcloneSourceOption[] = []): FlowModel {

@@ -17,7 +17,7 @@ export function MappingFlow({ flow, compact = false }: { flow: FlowModel; compac
       <div className="flow-compact">
         <span className="flow-compact__source" title={`${flow.source.title} ${flow.source.path}`}>
           <SourceIcon kind={flow.source.kind} size={14} />
-          <span className="mono">{flow.source.path}</span>
+          <span className="mono">{flow.source.short}</span>
         </span>
         <ArrowRight size={14} className="flow-compact__arrow" />
         {flow.targets.length ? (

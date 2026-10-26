@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeSource, fallbackDestination, flowFromMapping, flowFromWorkspace } from '../frontend/src/lib/mapping-view.js';
+import { describeSource, displaySourcePath, fallbackDestination, flowFromMapping, flowFromWorkspace } from '../frontend/src/lib/mapping-view.js';
 import { formatRelative, sizeToBytes } from '../frontend/src/lib/format.js';
 import type { MappingTaskItem, WorkspaceItem } from '../frontend/src/lib/types.js';
 
@@ -41,8 +41,11 @@ describe('mapping view helpers', () => {
       { source_type: 'rclone', source_remote_name: 'nas', source_path: 'photos/2026', local_path: 'rclone://nas/photos/2026' },
       [{ name: 'nas', type: 'smb' }]
     );
-    expect(source).toEqual({ kind: 'rclone', title: 'nas（SMB）', path: '/photos/2026' });
-    expect(describeSource({ local_path: '/data/docs' })).toEqual({ kind: 'local', title: '服务器本地目录', path: '/data/docs' });
+    expect(source).toEqual({ kind: 'rclone', title: 'nas（SMB）', path: '/photos/2026', short: 'nas:/photos/2026' });
+    expect(describeSource({ local_path: '/data/docs' })).toEqual({ kind: 'local', title: '服务器本地目录', path: '/data/docs', short: '/data/docs' });
+    expect(describeSource({ local_path: 'rclone://nas/photos' })).toMatchObject({ kind: 'rclone', short: 'nas:/photos' });
+    expect(displaySourcePath('rclone://飞牛/secret')).toBe('飞牛:/secret');
+    expect(displaySourcePath('/data/photos')).toBe('/data/photos');
   });
 
   it('orders targets by priority and uses the backend destination path', () => {

@@ -79,7 +79,7 @@ export function formatRelative(value: string | null, now: number = Date.now()): 
   const abs = Math.abs(diffSeconds);
   const suffix = diffSeconds < 0 ? '前' : '后';
 
-  if (abs < 45) return diffSeconds < 0 ? '刚刚' : '马上';
+  if (abs < 45) return '刚刚';
   if (abs < 3600) return `${Math.round(abs / 60)} 分钟${suffix}`;
   if (abs < 86400) return `${Math.round(abs / 3600)} 小时${suffix}`;
   if (abs < 86400 * 30) return `${Math.round(abs / 86400)} 天${suffix}`;
