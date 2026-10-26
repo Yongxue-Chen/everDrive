@@ -1,4 +1,12 @@
-import type { CloudViewResponse, MappingTaskItem, MappingTaskListResponse, QueueJob, RemotesListResponse, SettingsResponse, WorkspaceViewResponse } from './types.js';
+import type {
+  CloudViewResponse,
+  MappingTaskItem,
+  MappingTaskListResponse,
+  QueueJob,
+  RemotesListResponse,
+  SettingsResponse,
+  WorkspaceViewResponse
+} from './types.js';
 
 export const mockWorkspaceView: WorkspaceViewResponse = {
   items: [
@@ -88,7 +96,9 @@ export const mockMappingTasks: MappingTaskListResponse = {
           role: 'primary',
           priority: 1,
           remoteBasePath: 'team/photos',
-          is_active: true,
+          remoteRootPath: '',
+          destinationPath: 'driveA:/team/photos',
+          isActive: true,
           healthStatus: 'healthy',
           availableCapacityBytes: '42000000000'
         }

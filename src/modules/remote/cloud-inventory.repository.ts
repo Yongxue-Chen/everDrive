@@ -15,7 +15,8 @@ export class CloudInventoryRepository {
                 id: true,
                 name: true,
                 localPath: true,
-                isActive: true
+                isActive: true,
+                deletedAt: true
               }
             }
           }
@@ -36,7 +37,8 @@ export class CloudInventoryRepository {
                 id: true,
                 name: true,
                 localPath: true,
-                isActive: true
+                isActive: true,
+                deletedAt: true
               }
             }
           }
@@ -56,7 +58,8 @@ export class CloudInventoryRepository {
                 id: true,
                 name: true,
                 localPath: true,
-                isActive: true
+                isActive: true,
+                deletedAt: true
               }
             }
           }
@@ -76,7 +79,8 @@ export class CloudInventoryRepository {
                 id: true,
                 name: true,
                 localPath: true,
-                isActive: true
+                isActive: true,
+                deletedAt: true
               }
             }
           }
@@ -108,7 +112,8 @@ export class CloudInventoryRepository {
                 id: true,
                 name: true,
                 localPath: true,
-                isActive: true
+                isActive: true,
+                deletedAt: true
               }
             }
           }

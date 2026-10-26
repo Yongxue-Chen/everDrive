@@ -7,6 +7,7 @@ import {
   type WorkspaceViewResponse
 } from './dashboard.dto.js';
 import { DashboardRepository } from './dashboard.repository.js';
+import { buildDestinationPath } from '../remote/remote-fs.js';
 
 export class DashboardService {
   constructor(private readonly repository: DashboardRepository) {}
@@ -55,6 +56,12 @@ export class DashboardService {
           mapping_task_id: taskId,
           name: task.name,
           local_path: task.localPath,
+          source_type: task.sourceType ?? 'local',
+          source_remote_name: task.sourceRemoteName ?? null,
+          source_path: task.sourcePath ?? '',
+          sync_mode: task.syncMode ?? 'archive',
+          is_active: task.isActive ?? true,
+          split_enabled: task.splitEnabled ?? false,
           remotes: task.remotes.map((item) => ({
             remote_id: item.remoteId.toString(),
             remote_name: item.remote.remoteName,
@@ -62,7 +69,8 @@ export class DashboardService {
             role: item.role,
             priority: item.priority,
             health_status: item.remote.healthStatus,
-            is_active: item.remote.isActive
+            is_active: item.remote.isActive,
+            destination_path: buildDestinationPath(item.remote.remoteName, item.remote.remoteRootPath, item.remoteBasePath)
           })),
           sync_status: this.computeSyncStatus(task.remotes, latestSync?.status, statusCounts),
           last_sync_at: task.lastSuccessfulSyncAt?.toISOString() ?? null,

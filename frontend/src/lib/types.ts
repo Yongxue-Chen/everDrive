@@ -4,6 +4,12 @@ export type WorkspaceItem = {
   mapping_task_id: string;
   name: string;
   local_path: string;
+  source_type?: 'local' | 'rclone';
+  source_remote_name?: string | null;
+  source_path?: string;
+  sync_mode?: 'archive' | 'mirror';
+  is_active?: boolean;
+  split_enabled?: boolean;
   remotes: Array<{
     remote_id: string;
     remote_name: string;
@@ -12,6 +18,7 @@ export type WorkspaceItem = {
     priority: number;
     health_status: string;
     is_active: boolean;
+    destination_path?: string;
   }>;
   sync_status: 'green' | 'yellow' | 'red';
   last_sync_at: string | null;
@@ -75,7 +82,9 @@ export type MappingTaskListResponse = {
       role: string;
       priority: number;
       remoteBasePath: string;
-      is_active: boolean;
+      remoteRootPath?: string;
+      destinationPath?: string;
+      isActive: boolean;
       healthStatus: string;
       availableCapacityBytes: string;
     }>;
@@ -337,22 +346,89 @@ export type RcloneProviderOption = {
 };
 export type RcloneProvider = { Name: string; Prefix: string; Description: string; Options: RcloneProviderOption[]; Hide?: boolean };
 export type RcloneConfigRemoteSummary = { name: string; boundRemoteId: string | null; boundDisplayName: string | null; webUrl: string | null };
-export type RcloneConfigFlowPayload = { action: 'create' | 'update'; name: string; type?: string; parameters: Record<string, RcloneConfigValue>; state?: string; result?: string };
+export type RcloneConfigFlowPayload = {
+  action: 'create' | 'update';
+  name: string;
+  type?: string;
+  parameters: Record<string, RcloneConfigValue>;
+  state?: string;
+  result?: string;
+};
 export type RcloneConfigRemote = { name: string; type: string; parameters: Record<string, unknown>; sensitiveFields: string[] };
 export type RcloneConfigMutationPayload = { name: string; type: string; parameters: Record<string, RcloneConfigValue> };
 
-export type MigrationPayload = { sourceRemoteId: string; targetRemoteId: string; scopeRelativePath?: string; targetBasePath?: string; removeSourceReplica?: boolean };
-export type RedundancyOverview = { mappingTaskId: string; name: string; localPath: string; remotes: Array<{ remoteId: string; remoteName: string; displayName: string; isActive: boolean; syncedCount: number; pendingCount: number; failedCount: number; deletedCount: number }>; fileCount: number; replicaTarget: number; replicaAchieved: number; protectionLevel: 'ok' | 'degraded' | 'critical' };
-export type AuditLogItem = { id: string; operationType: string; targetType: string; targetId: string | null; message: string; metadataJson: unknown; createdAt: string };
+export type MigrationPayload = {
+  sourceRemoteId: string;
+  targetRemoteId: string;
+  scopeRelativePath?: string;
+  targetBasePath?: string;
+  removeSourceReplica?: boolean;
+};
+export type RedundancyOverview = {
+  mappingTaskId: string;
+  name: string;
+  localPath: string;
+  remotes: Array<{
+    remoteId: string;
+    remoteName: string;
+    displayName: string;
+    isActive: boolean;
+    syncedCount: number;
+    pendingCount: number;
+    failedCount: number;
+    deletedCount: number;
+  }>;
+  fileCount: number;
+  replicaTarget: number;
+  replicaAchieved: number;
+  protectionLevel: 'ok' | 'degraded' | 'critical';
+};
+export type AuditLogItem = {
+  id: string;
+  operationType: string;
+  targetType: string;
+  targetId: string | null;
+  message: string;
+  metadataJson: unknown;
+  createdAt: string;
+};
 export type AuditLogQuery = { operationType?: string; targetType?: string; targetId?: string; from?: string; to?: string; limit?: number };
-export type MetricsOverview = { queueLength: number; runningTasks: number; failedTasks24h: number; remoteCapacityNearLimitCount: number; recentSyncSuccessRate: number; recentFailedJobs: Array<{ jobId: string; jobType: string; mappingTaskId: string; errorMessage: string | null; createdAt: string }> };
+export type MetricsOverview = {
+  queueLength: number;
+  runningTasks: number;
+  failedTasks24h: number;
+  remoteCapacityNearLimitCount: number;
+  recentSyncSuccessRate: number;
+  recentFailedJobs: Array<{ jobId: string; jobType: string; mappingTaskId: string; errorMessage: string | null; createdAt: string }>;
+};
 
 export type EncryptionRecoveryTask = { id: string; name: string; fileCount: number };
-export type EncryptionRecoveryFile = { id: string; relativePath: string; fileSize: string; modifiedTime: string; replicas: Array<{ remoteId: string; displayName: string; remotePath: string }> };
+export type EncryptionRecoveryFile = {
+  id: string;
+  relativePath: string;
+  fileSize: string;
+  modifiedTime: string;
+  replicas: Array<{ remoteId: string; displayName: string; remotePath: string }>;
+};
 
 export type RcloneSourceOption = { name: string; type: 'smb' | 'sftp' };
 export type RcloneSourceBrowseItem = { name: string; path: string; isDirectory: boolean; sizeBytes: string };
 
-export type DataRecoveryTask={id:string;name:string;encryptionEnabled:boolean;fileCount:number};
-export type DataRecoveryFile={id:string;relativePath:string;fileSize:string;modifiedTime:string;source:{displayName:string;remotePath:string}|null};
-export type DataRecoverySummary={mappingTaskId:string;destinationPath:string;conflictStrategy:'skip'|'overwrite';selected:number;restored:number;skipped:number;failed:number;failures:Array<{relativePath:string;message:string}>};
+export type DataRecoveryTask = { id: string; name: string; encryptionEnabled: boolean; fileCount: number };
+export type DataRecoveryFile = {
+  id: string;
+  relativePath: string;
+  fileSize: string;
+  modifiedTime: string;
+  source: { displayName: string; remotePath: string } | null;
+};
+export type DataRecoverySummary = {
+  mappingTaskId: string;
+  destinationPath: string;
+  conflictStrategy: 'skip' | 'overwrite';
+  selected: number;
+  restored: number;
+  skipped: number;
+  failed: number;
+  failures: Array<{ relativePath: string; message: string }>;
+};

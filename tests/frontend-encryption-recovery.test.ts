@@ -11,7 +11,10 @@ describe('frontend encryption recovery', () => {
     expect(page).toContain('ENCRYPTION_MASTER_KEY');
     expect(page).toContain('解密下载');
     expect(router).toContain("path: 'encryption-recovery'");
-    expect(sidebar).toContain("['/encryption-recovery','加密恢复'");
+    const center = await readFile('frontend/src/pages/RecoveryCenterPage.tsx', 'utf8');
+    expect(sidebar).toContain("to: '/recovery'");
+    expect(center).toContain("label: '加密恢复'");
+    expect(router).toContain('/recovery?tab=encryption');
     expect(api).toContain('/api/encryption-recovery/files/');
   });
 });

@@ -6,11 +6,9 @@ import { MappingTasksPage } from './pages/MappingTasksPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { RcloneConfigPage } from './pages/RcloneConfigPage';
 import { CloudMigrationPage } from './pages/CloudMigrationPage';
-import { RedundancyRecoveryPage } from './pages/RedundancyRecoveryPage';
+import { RecoveryCenterPage } from './pages/RecoveryCenterPage';
 import { OperationLogsPage } from './pages/OperationLogsPage';
 import { SystemMetricsPage } from './pages/SystemMetricsPage';
-import { EncryptionRecoveryPage } from './pages/EncryptionRecoveryPage';
-import { DataRecoveryPage } from './pages/DataRecoveryPage';
 
 export const router = createBrowserRouter([
   {
@@ -23,12 +21,15 @@ export const router = createBrowserRouter([
       { path: 'cloud-remotes', element: <CloudRemotesPage /> },
       { path: 'rclone-config', element: <RcloneConfigPage /> },
       { path: 'cloud-migration', element: <CloudMigrationPage /> },
-      { path: 'data-recovery', element: <DataRecoveryPage /> },
-      { path: 'redundancy-recovery', element: <RedundancyRecoveryPage /> },
-      { path: 'encryption-recovery', element: <EncryptionRecoveryPage /> },
+      { path: 'recovery', element: <RecoveryCenterPage /> },
+      // Old standalone recovery pages now live as tabs in the recovery center.
+      { path: 'data-recovery', element: <Navigate to="/recovery?tab=data" replace /> },
+      { path: 'redundancy-recovery', element: <Navigate to="/recovery?tab=redundancy" replace /> },
+      { path: 'encryption-recovery', element: <Navigate to="/recovery?tab=encryption" replace /> },
       { path: 'operation-logs', element: <OperationLogsPage /> },
       { path: 'system-metrics', element: <SystemMetricsPage /> },
-      { path: 'settings', element: <SettingsPage /> }
+      { path: 'settings', element: <SettingsPage /> },
+      { path: '*', element: <Navigate to="/dashboard" replace /> }
     ]
   }
 ]);

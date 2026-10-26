@@ -10,7 +10,7 @@ describe('frontend rclone guidance', () => {
   });
 
   it('explains how to add a missing readonly source remote', async () => {
-    const page = await readFile('frontend/src/pages/MappingTasksPage.tsx', 'utf8');
+    const page = await readFile('frontend/src/components/MappingWizard.tsx', 'utf8');
 
     expect(page).toContain('还没有可用的 SMB/SFTP 来源 remote');
     expect(page).toContain('to="/rclone-config"');

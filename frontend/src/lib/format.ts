@@ -64,3 +64,43 @@ export function formatDate(value: string | null): string {
 
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
+
+export function formatRelative(value: string | null, now: number = Date.now()): string {
+  if (!value) {
+    return '从未';
+  }
+
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) {
+    return '时间无效';
+  }
+
+  const diffSeconds = Math.round((time - now) / 1000);
+  const abs = Math.abs(diffSeconds);
+  const suffix = diffSeconds < 0 ? '前' : '后';
+
+  if (abs < 45) return '刚刚';
+  if (abs < 3600) return `${Math.round(abs / 60)} 分钟${suffix}`;
+  if (abs < 86400) return `${Math.round(abs / 3600)} 小时${suffix}`;
+  if (abs < 86400 * 30) return `${Math.round(abs / 86400)} 天${suffix}`;
+  return formatDate(value).slice(0, 10);
+}
+
+export function formatPercent(value: number): string {
+  if (!Number.isFinite(value)) {
+    return '-';
+  }
+  return `${Math.round(value)}%`;
+}
+
+export type SizeUnit = 'GB' | 'TB';
+
+const UNIT_BYTES: Record<SizeUnit, number> = { GB: 1024 ** 3, TB: 1024 ** 4 };
+
+export function sizeToBytes(value: string, unit: SizeUnit): string {
+  const amount = Number(value);
+  if (!value.trim() || !Number.isFinite(amount) || amount <= 0) {
+    return '';
+  }
+  return Math.round(amount * UNIT_BYTES[unit]).toString();
+}

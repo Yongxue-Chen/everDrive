@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { HealthStatus, MappingRemoteRole, SyncMode, SourceType } from '@prisma/client';
 import { AppError } from '../../errors/app-error.js';
+import { buildDestinationPath } from '../remote/remote-fs.js';
 
 export type MappingTaskStatus = 'active' | 'inactive' | 'deleted';
 
@@ -14,6 +15,7 @@ export type MappingTaskRemoteRecord = {
     id: bigint;
     remoteName: string;
     displayName: string;
+    remoteRootPath?: string;
     isActive: boolean;
     healthStatus: HealthStatus;
     totalCapacity: bigint;
@@ -122,6 +124,8 @@ export type MappingTaskRemoteView = {
   role: MappingRemoteRole;
   priority: number;
   remoteBasePath: string;
+  remoteRootPath: string;
+  destinationPath: string;
   isActive: boolean;
   healthStatus: HealthStatus;
   availableCapacityBytes: string;
@@ -539,10 +543,12 @@ export class MappingTaskService {
         remoteId: item.remoteId.toString(),
         remoteName: item.remote.remoteName,
         displayName: item.remote.displayName,
-          role: item.role,
-          priority: item.priority,
-          remoteBasePath: item.remoteBasePath,
-          isActive: item.remote.isActive,
+        role: item.role,
+        priority: item.priority,
+        remoteBasePath: item.remoteBasePath,
+        remoteRootPath: item.remote.remoteRootPath ?? '',
+        destinationPath: buildDestinationPath(item.remote.remoteName, item.remote.remoteRootPath, item.remoteBasePath),
+        isActive: item.remote.isActive,
         healthStatus: item.remote.healthStatus,
         availableCapacityBytes: this.computeAvailableCapacity(item.remote).toString()
       })),

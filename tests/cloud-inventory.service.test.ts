@@ -203,6 +203,18 @@ describe('CloudInventoryService', () => {
     expect(cards[0]?.healthStatus).toBe('unavailable');
   });
 
+  it('hides soft-deleted mappings from the mapped directories of a remote', async () => {
+    const link = (id: bigint, name: string, deletedAt: Date | null) => ({ id, role: 'primary', priority: 1, mappingTask: { id, name, localPath: `/data/${name}`, isActive: true, deletedAt } });
+    const repository = createRepositoryStub({
+      listRemotes: vi.fn(async () => [buildRemote({ mappingTaskRemotes: [link(1n, 'photos', null), link(2n, 'photos__deleted_1', new Date())] })])
+    });
+    const service = new CloudInventoryService(repository, createRcloneStub());
+
+    const cards = await service.listRemoteCards();
+
+    expect(cards[0]?.mappedDirectories.map((item) => item.mappingTaskName)).toEqual(['photos']);
+  });
+
   it('updates manual total capacity and custom threshold', async () => {
     const repository = createRepositoryStub();
     const service = new CloudInventoryService(repository, createRcloneStub());

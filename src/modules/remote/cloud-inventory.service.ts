@@ -36,6 +36,7 @@ export type RemoteRecord = {
       name: string;
       localPath: string;
       isActive: boolean;
+      deletedAt?: Date | null;
     };
   }>;
 };
@@ -452,7 +453,8 @@ export class CloudInventoryService {
         alert: stats.healthStatus === HealthStatus.warning || stats.healthStatus === HealthStatus.full || stats.healthStatus === HealthStatus.unavailable,
         realUsageAvailable: runtimeSnapshot?.realUsageAvailable ?? false
       },
-      mappedDirectories: remote.mappingTaskRemotes.map((link) => ({
+      // Soft-deleted mappings keep their bindings in the database but are no longer in use.
+      mappedDirectories: remote.mappingTaskRemotes.filter((link) => !link.mappingTask.deletedAt).map((link) => ({
         mappingTaskId: link.mappingTask.id.toString(),
         mappingTaskName: link.mappingTask.name,
         localPath: link.mappingTask.localPath,
