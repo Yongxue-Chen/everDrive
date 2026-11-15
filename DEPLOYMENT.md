@@ -46,7 +46,7 @@
 - `MYSQL_BIND_ADDRESS`：默认 `127.0.0.1`
 - `MYSQL_PORT`
 - `RCLONE_RCD_PORT`
-- `RCLONE_IMAGE`：固定的 rclone 容器镜像，默认 `rclone/rclone:1.73.2`
+- `RCLONE_IMAGE`：固定的 rclone 容器镜像，默认 `rclone/rclone:1.76.0`
 - `RCLONE_BIND_ADDRESS`：默认 `127.0.0.1`
 - `DOCKER_RCLONE_RCD_URL`：默认 `http://rclone:5572`
 - `BACKEND_PORT`

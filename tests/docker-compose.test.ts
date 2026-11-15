@@ -43,7 +43,7 @@ describe('docker compose deployment contract', () => {
   it('pins rclone and waits for healthy dependencies', async () => {
     const compose = await readCompose();
 
-    expect(compose).toContain('image: ${RCLONE_IMAGE:-rclone/rclone:1.73.2}');
+    expect(compose).toContain('image: ${RCLONE_IMAGE:-rclone/rclone:1.76.0}');
     expect(compose.match(/healthcheck:/g)).toHaveLength(4);
     expect(compose).toContain('rclone:\n        condition: service_healthy');
     expect(compose).toContain('backend:\n        condition: service_healthy');

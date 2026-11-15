@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
 
   rclone:
-    image: ${RCLONE_IMAGE:-rclone/rclone:1.73.2}
+    image: ${RCLONE_IMAGE:-rclone/rclone:1.76.0}
     command:
       - rcd
       - --rc-addr=:5572
