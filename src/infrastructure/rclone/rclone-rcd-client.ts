@@ -486,7 +486,8 @@ export class RcloneClient implements IRcloneClient {
           throw error;
         }
 
-        this.log.info('rclone request succeeded', {
+        // job/status is polled every couple of seconds while a job runs: keep it out of the info log.
+        this.log[method === 'job/status' ? 'debug' : 'info']('rclone request succeeded', {
           method,
           attempt,
           durationMs: Date.now() - startedAt
