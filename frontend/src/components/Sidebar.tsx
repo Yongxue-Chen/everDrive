@@ -110,6 +110,21 @@ function ThemeSwitch() {
   );
 }
 
+/**
+ * Signing out happens at the identity service, which signs every service out together.
+ * Pass this app as `next` so signing back in returns here instead of leaving the user
+ * on the identity service's own home page.
+ */
+function logoutHref(logoutUrl: string): string {
+  try {
+    const target = new URL(logoutUrl);
+    target.searchParams.set('next', `${window.location.origin}/`);
+    return target.toString();
+  } catch {
+    return logoutUrl;
+  }
+}
+
 function SessionBadge() {
   const session = useQuery({ queryKey: ['auth-session'], queryFn: getAuthSession, staleTime: 5 * 60 * 1000, retry: false });
   const data = session.data;
@@ -122,7 +137,7 @@ function SessionBadge() {
         {data.email}
       </span>
       {data.logoutUrl ? (
-        <a className="sidebar__session-logout" href={data.logoutUrl}>
+        <a className="sidebar__session-logout" href={logoutHref(data.logoutUrl)}>
           退出登录
         </a>
       ) : null}
