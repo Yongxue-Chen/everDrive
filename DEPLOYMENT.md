@@ -20,7 +20,9 @@
 - `RCLONE_RCD_URL`: 例如 `http://127.0.0.1:5572`
 - `RCLONE_RCD_USER`: rcd Basic Auth 用户
 - `RCLONE_RCD_PASS`: rcd Basic Auth 密码
-- `RCLONE_HTTP_TIMEOUT_MS`
+- `RCLONE_HTTP_TIMEOUT_MS`：rclone 守护进程自身接口的超时（版本、配置、任务状态），默认 5 秒
+- `RCLONE_REMOTE_TIMEOUT_MS`：与云盘的一次往返（容量、stat、单层列目录、建目录、删除、“测试连接”），默认 120 秒；Proton Drive 这类较慢的网盘单次列目录可能要几十秒
+- `RCLONE_LONG_TIMEOUT_MS`：递归列目录和阻塞式传输，默认 15 分钟
 - `RCLONE_RETRY_ATTEMPTS`
 - `RCLONE_RETRY_DELAY_MS`
 

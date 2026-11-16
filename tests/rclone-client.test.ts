@@ -313,4 +313,78 @@ describe('RcloneClient', () => {
     expect(body).toEqual({ fs: 'demo:', remote: '', opt: { maxDepth: 1 }, _config: { MaxDepth: 1 } });
   });
 
+  describe('deadlines by kind of call', () => {
+    const options = { baseUrl: 'http://127.0.0.1:5572', user: 'everdrive', pass: '123456', timeoutMs: 20, remoteTimeoutMs: 200, longTimeoutMs: 600, retryAttempts: 2, retryDelayMs: 0 };
+
+    /** A fetch that never answers until its deadline aborts it, recording how long each call was given. */
+    function hangingFetch() {
+      const waits: number[] = [];
+      const fetchMock = vi.fn((_url: string, init: RequestInit) => {
+        const startedAt = Date.now();
+        return new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            waits.push(Date.now() - startedAt);
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+          });
+        });
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      return { fetchMock, waits };
+    }
+
+    it('gives a single remote round trip the remote deadline and does not repeat a timed-out call', async () => {
+      const { fetchMock, waits } = hangingFetch();
+      const client = new RcloneClient(options);
+
+      await expect(client.listEntries('slow:', '')).rejects.toMatchObject({ code: 'NETWORK_TIMEOUT' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(waits[0]).toBeGreaterThanOrEqual(180);
+      expect(waits[0]).toBeLessThan(500);
+
+      await expect(client.getAbout('slow:')).rejects.toMatchObject({ code: 'NETWORK_TIMEOUT' });
+      await expect(client.stat('slow:', 'a')).rejects.toMatchObject({ code: 'NETWORK_TIMEOUT' });
+      await expect(client.testRemote('slow')).rejects.toMatchObject({ code: 'NETWORK_TIMEOUT' });
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+      expect(Math.min(...waits)).toBeGreaterThanOrEqual(180);
+    });
+
+    it('gives recursive listings and blocking transfers the long deadline', async () => {
+      const { fetchMock, waits } = hangingFetch();
+      const client = new RcloneClient(options);
+
+      await expect(client.listEntries('slow:', '', true)).rejects.toMatchObject({ code: 'NETWORK_TIMEOUT' });
+      await expect(client.sync({ srcFs: '/data', srcRemote: '', dstFs: 'slow:', dstRemote: 'd' })).rejects.toMatchObject({ code: 'NETWORK_TIMEOUT' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(Math.min(...waits)).toBeGreaterThanOrEqual(550);
+    });
+
+    it('keeps the short deadline, with retries, for the daemon and for calls that only queue a job', async () => {
+      const { fetchMock, waits } = hangingFetch();
+      const client = new RcloneClient(options);
+
+      await expect(client.listRemotes()).rejects.toMatchObject({ code: 'NETWORK_TIMEOUT' });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      await expect(client.sync({ srcFs: '/data', srcRemote: '', dstFs: 'slow:', dstRemote: 'd', async: true })).rejects.toMatchObject({ code: 'NETWORK_TIMEOUT' });
+      expect(fetchMock).toHaveBeenCalledTimes(6);
+      expect(Math.max(...waits)).toBeLessThan(150);
+    });
+
+    it('still retries a remote call when the daemon itself is unreachable', async () => {
+      const fetchMock = vi.fn(async () => Promise.reject(new TypeError('fetch failed')));
+      vi.stubGlobal('fetch', fetchMock);
+      const client = new RcloneClient(options);
+
+      await expect(client.getAbout('any:')).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('never gives a remote less time than the daemon', async () => {
+      const { waits } = hangingFetch();
+      const client = new RcloneClient({ ...options, timeoutMs: 150, remoteTimeoutMs: 10, longTimeoutMs: 10, retryAttempts: 0 });
+
+      await expect(client.getAbout('slow:')).rejects.toMatchObject({ code: 'NETWORK_TIMEOUT' });
+      expect(waits[0]).toBeGreaterThanOrEqual(130);
+    });
+  });
+
 });

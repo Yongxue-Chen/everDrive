@@ -15,6 +15,10 @@ const EnvSchema = z.object({
   RCLONE_RCD_PASS: z.string().min(1),
   ENCRYPTION_MASTER_KEY: z.string().optional().default(''),
   RCLONE_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+  // One round trip to a cloud remote (about, stat, single-level listing, mkdir, delete).
+  RCLONE_REMOTE_TIMEOUT_MS: z.coerce.number().int().positive().default(120000),
+  // Recursive listings and blocking transfers, which grow with the amount of data.
+  RCLONE_LONG_TIMEOUT_MS: z.coerce.number().int().positive().default(900000),
   RCLONE_RETRY_ATTEMPTS: z.coerce.number().int().min(0).default(2),
   RCLONE_RETRY_DELAY_MS: z.coerce.number().int().min(0).default(250),
   LOCAL_PATH_ALLOWED_ROOTS: z.string().default('/'),

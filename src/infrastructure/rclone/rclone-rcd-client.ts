@@ -83,7 +83,12 @@ type RcloneClientOptions = {
   baseUrl?: string;
   user?: string;
   pass?: string;
+  /** Calls answered by the rclone daemon itself (version, config, job status). */
   timeoutMs?: number;
+  /** One round trip to a cloud remote: about, stat, a single-level listing, mkdir, delete. */
+  remoteTimeoutMs?: number;
+  /** Work that scales with the data: recursive listings and blocking transfers. */
+  longTimeoutMs?: number;
   retryAttempts?: number;
   retryDelayMs?: number;
   getExecutionProfile?: () => {
@@ -94,6 +99,10 @@ type RcloneClientOptions = {
     bwLimitMiB: number;
   };
 };
+
+const LONG_BLOCKING_METHODS = new Set(['operations/copyfile', 'operations/movefile', 'operations/purge']);
+
+type PostOptions = { timeoutMs?: number; retryAttempts?: number; retryOnTimeout?: boolean };
 
 type RcloneRpcResponseBody = {
   error?: string;
@@ -158,6 +167,8 @@ export class RcloneClient implements IRcloneClient {
   private readonly baseUrl: string;
   private readonly authHeader: string;
   private readonly timeoutMs: number;
+  private readonly remoteTimeoutMs: number;
+  private readonly longTimeoutMs: number;
   private readonly retryAttempts: number;
   private readonly retryDelayMs: number;
   private getExecutionProfile?: RcloneClientOptions['getExecutionProfile'];
@@ -170,6 +181,9 @@ export class RcloneClient implements IRcloneClient {
 
     this.baseUrl = (options?.baseUrl ?? env.RCLONE_RCD_URL).replace(/\/+$/, '');
     this.timeoutMs = options?.timeoutMs ?? env.RCLONE_HTTP_TIMEOUT_MS;
+    // A remote is never given less time than the daemon, and long work never less than a remote.
+    this.remoteTimeoutMs = Math.max(options?.remoteTimeoutMs ?? env.RCLONE_REMOTE_TIMEOUT_MS, this.timeoutMs);
+    this.longTimeoutMs = Math.max(options?.longTimeoutMs ?? env.RCLONE_LONG_TIMEOUT_MS, this.remoteTimeoutMs);
     this.retryAttempts = options?.retryAttempts ?? env.RCLONE_RETRY_ATTEMPTS;
     this.retryDelayMs = options?.retryDelayMs ?? env.RCLONE_RETRY_DELAY_MS;
     this.getExecutionProfile = options?.getExecutionProfile;
@@ -196,7 +210,7 @@ export class RcloneClient implements IRcloneClient {
   }
 
   async getAbout(fs: string): Promise<RcloneAboutResult> {
-    const response = await this.post<Record<string, unknown>>('operations/about', { fs });
+    const response = await this.post<Record<string, unknown>>('operations/about', { fs }, this.remoteCall());
 
     const readBigintLike = (value: unknown): string | null => {
       if (typeof value === 'number' && Number.isFinite(value)) {
@@ -221,12 +235,12 @@ export class RcloneClient implements IRcloneClient {
     const response = await this.post<{ item?: Record<string, unknown> | null }>('operations/stat', {
       fs,
       remote
-    });
+    }, this.remoteCall());
     return response.item !== null && response.item !== undefined;
   }
 
   async listEntries(fs: string, remote: string, recursive = false): Promise<RcloneListEntry[]> {
-    const response = await this.post<{ list?: RcloneListEntry[] }>('operations/list', { fs, remote, opt: { recurse: recursive, showHash: false } });
+    const response = await this.post<{ list?: RcloneListEntry[] }>('operations/list', { fs, remote, opt: { recurse: recursive, showHash: false } }, recursive ? this.longCall() : this.remoteCall());
     return response.list ?? [];
   }
 
@@ -269,7 +283,7 @@ export class RcloneClient implements IRcloneClient {
       remote: '',
       opt: { maxDepth: 1 },
       _config: { MaxDepth: 1 }
-    }, { timeoutMs: 5000, retryAttempts: 0 });
+    }, { ...this.remoteCall(), retryAttempts: 0 });
     return true;
   }
 
@@ -335,7 +349,11 @@ export class RcloneClient implements IRcloneClient {
     method: string,
     payload: Record<string, unknown> & { _async: boolean }
   ): Promise<RcloneOperationResult> {
-    const response = await this.post<{ jobid?: number } & Record<string, unknown>>(method, payload);
+    // An async call only queues a job and returns its id; a blocking one waits for the
+    // remote, and for transfers that wait grows with the amount of data.
+    const growsWithData = method.startsWith('sync/') || LONG_BLOCKING_METHODS.has(method);
+    const callOptions = payload._async ? undefined : growsWithData ? this.longCall() : this.remoteCall();
+    const response = await this.post<{ jobid?: number } & Record<string, unknown>>(method, payload, callOptions);
 
     if (payload._async) {
       if (typeof response.jobid !== 'number') {
@@ -370,10 +388,25 @@ export class RcloneClient implements IRcloneClient {
     };
   }
 
-  private async post<TResult extends Record<string, unknown>>(method: string, body: Record<string, unknown>, options?: { timeoutMs?: number; retryAttempts?: number }): Promise<TResult> {
+  /**
+   * Cloud remotes answer in their own time (a Proton Drive listing can take most of a
+   * minute), so they get a longer deadline than the daemon's own endpoints. A call that
+   * did run out of time is not repeated: the remote is slow, not flaky, and asking again
+   * only multiplies the wait and the load.
+   */
+  private remoteCall(): PostOptions {
+    return { timeoutMs: this.remoteTimeoutMs, retryOnTimeout: false };
+  }
+
+  private longCall(): PostOptions {
+    return { timeoutMs: this.longTimeoutMs, retryOnTimeout: false };
+  }
+
+  private async post<TResult extends Record<string, unknown>>(method: string, body: Record<string, unknown>, options?: PostOptions): Promise<TResult> {
     const startedAt = Date.now();
     const timeoutMs = options?.timeoutMs ?? this.timeoutMs;
     const retryAttempts = options?.retryAttempts ?? this.retryAttempts;
+    const retryOnTimeout = options?.retryOnTimeout ?? true;
 
     for (let attempt = 0; attempt <= retryAttempts; attempt++) {
       const controller = new AbortController();
@@ -407,7 +440,7 @@ export class RcloneClient implements IRcloneClient {
             responseBody: error.responseBody
           });
 
-          if (attempt < retryAttempts && this.shouldRetry(error)) {
+          if (attempt < retryAttempts && this.shouldRetry(error, retryOnTimeout)) {
             await sleep(this.retryDelayMs);
             continue;
           }
@@ -426,10 +459,12 @@ export class RcloneClient implements IRcloneClient {
           method,
           attempt,
           code: mapped.code,
+          timeoutMs,
+          durationMs: Date.now() - startedAt,
           err: error
         });
 
-        if (attempt < retryAttempts && this.shouldRetry(mapped)) {
+        if (attempt < retryAttempts && this.shouldRetry(mapped, retryOnTimeout)) {
           await sleep(this.retryDelayMs);
           continue;
         }
@@ -446,8 +481,8 @@ export class RcloneClient implements IRcloneClient {
     });
   }
 
-  private shouldRetry(error: RcloneClientError): boolean {
-    return error.code === 'NETWORK_ERROR' || error.code === 'NETWORK_TIMEOUT';
+  private shouldRetry(error: RcloneClientError, retryOnTimeout = true): boolean {
+    return error.code === 'NETWORK_ERROR' || (retryOnTimeout && error.code === 'NETWORK_TIMEOUT');
   }
 
   private mapResponseError(method: string, statusCode: number, responseBody: RcloneRpcResponseBody): RcloneClientError {
