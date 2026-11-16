@@ -27,7 +27,21 @@ const EnvSchema = z.object({
   RCLONE_CONCURRENCY: z.coerce.number().int().positive().default(4),
   JOB_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
   JOB_SHORT_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(1),
-  JOB_REMOTE_CONCURRENCY_LIMIT: z.coerce.number().int().positive().default(1)
+  JOB_REMOTE_CONCURRENCY_LIMIT: z.coerce.number().int().positive().default(1),
+
+  // Optional single sign-on (see src/lib/sso.ts). SSO is on when SSO_SECRET and
+  // SSO_LOGIN_URL are both set. SSO_REQUIRED=true makes a deployment without them
+  // refuse requests instead of running open.
+  SSO_SECRET: z.string().optional().default(''),
+  SSO_LOGIN_URL: z.string().optional().default(''),
+  SSO_LOGOUT_URL: z.string().optional().default(''),
+  SSO_CHECK_URL: z.string().optional().default(''),
+  SSO_ALLOWED_EMAILS: z.string().optional().default(''),
+  SSO_REQUIRED: z
+    .enum(['true', 'false'])
+    .optional()
+    .default('false')
+    .transform((value) => value === 'true')
 });
 
 export type AppEnv = z.infer<typeof EnvSchema>;

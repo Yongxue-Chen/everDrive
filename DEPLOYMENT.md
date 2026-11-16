@@ -316,3 +316,16 @@ curl -u "$RCLONE_RCD_USER:$RCLONE_RCD_PASS" "$RCLONE_RCD_URL/core/version"
 1. 查看日志确认是否数据库未就绪或连接串错误。
 2. 确认 `DATABASE_URL` 和 `DB_MIGRATE_MAX_RETRIES` 配置。
 3. 确认 MySQL 已创建目标库并允许访问。
+
+## 单点登录（可选）
+
+everDrive 自身没有账号体系。默认情况下任何能访问到 Web 界面的人都可以操作，因此只应绑定在本机、局域网或 Tailscale 地址上。
+
+如果你有一个签发 `ever_sso` cookie 的统一登录服务（参考部署里是 everTravel），可以让 everDrive 认这份登录：
+
+1. 给 everDrive 配一个与登录服务**同一父域名**下的 HTTPS 域名（cookie 只对该父域名的子域名生效），经反向代理访问前端端口。
+2. 在 `.env` 里设置 `SSO_SECRET`（与登录服务相同的签名密钥）和 `SSO_LOGIN_URL`；建议同时设置 `SSO_CHECK_URL`、`SSO_LOGOUT_URL`、`SSO_ALLOWED_EMAILS`，并把 `SSO_REQUIRED` 设为 `true`。各项含义见 `.env.example`。
+3. 如果 `SSO_CHECK_URL` 指向另一个 compose 项目里的容器，需要让 `backend` 加入那个 Docker 网络。
+4. `docker compose up -d backend frontend`。
+
+启用后：除 `/health`、`/ready` 外的所有接口都要求有效登录；未登录时前端会跳转到登录页，登录后回到原页面；侧边栏底部显示当前账号和“退出登录”。启动日志里会有一行 `Single sign-on enabled`，没有配置时则是一条警告。

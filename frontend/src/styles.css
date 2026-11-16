@@ -3214,3 +3214,24 @@ summary:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Signed-in account (single sign-on) */
+.sidebar__session {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+.sidebar__session-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar__session-logout {
+  flex-shrink: 0;
+  color: inherit;
+  text-decoration: underline;
+}

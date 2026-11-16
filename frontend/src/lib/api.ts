@@ -42,8 +42,42 @@ export function setApiMode(mode: ApiMode): void {
   window.dispatchEvent(new CustomEvent('everdrive_api_mode_changed', { detail: mode }));
 }
 
+/**
+ * fetch for the backend API. When the backend answers 401 with a login URL (single
+ * sign-on is enabled and the session is missing or expired), send the browser to
+ * sign in and come back to the current page.
+ */
+async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const response = init === undefined ? await fetch(path) : await fetch(path, init);
+  if (response.status === 401 && typeof window !== 'undefined') {
+    const loginUrl = await response
+      .clone()
+      .json()
+      .then((payload: { loginUrl?: unknown }) => (typeof payload.loginUrl === 'string' ? payload.loginUrl : ''))
+      .catch(() => '');
+    if (loginUrl) {
+      const target = new URL(loginUrl);
+      target.searchParams.set('next', window.location.href);
+      window.location.assign(target.toString());
+    }
+  }
+  return response;
+}
+
+export type AuthSession = { authEnabled: boolean; email: string | null; logoutUrl: string | null };
+
+/** Who is signed in (single sign-on). In mock mode, or on older backends, nobody. */
+export async function getAuthSession(): Promise<AuthSession> {
+  const none: AuthSession = { authEnabled: false, email: null, logoutUrl: null };
+  if (getApiMode() === 'mock') {
+    return none;
+  }
+  const response = await apiFetch('/api/auth/session');
+  return response.ok ? ((await response.json()) as AuthSession) : none;
+}
+
 async function requestJson<T>(path: string): Promise<T> {
-  const response = await fetch(path);
+  const response = await apiFetch(path);
   if (!response.ok) {
     throw new Error(await buildApiErrorMessage(response, path));
   }
@@ -51,7 +85,7 @@ async function requestJson<T>(path: string): Promise<T> {
 }
 
 async function requestJsonWithBody<T>(path: string, method: 'POST' | 'PATCH' | 'DELETE', body?: unknown): Promise<T> {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     method,
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body)
@@ -453,7 +487,7 @@ export async function updateSettings(payload: UpdateSettingsPayload): Promise<Se
     };
   }
 
-  const response = await fetch('/api/settings', {
+  const response = await apiFetch('/api/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)

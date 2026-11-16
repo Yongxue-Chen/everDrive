@@ -1,4 +1,5 @@
 import { createApp } from './app/create-app.js';
+import { ssoConfigFromEnv } from './lib/sso.js';
 import { getEnv } from './config/env.js';
 import { database } from './infrastructure/db/database.js';
 import { OperationLogRepository } from './infrastructure/repositories/operation-log.repository.js';
@@ -222,9 +223,19 @@ async function bootstrap(): Promise<void> {
     return { summary };
   });
 
+  const ssoConfig = ssoConfigFromEnv(env);
+  if (ssoConfig) {
+    logger.info('Single sign-on enabled', { loginUrl: ssoConfig.loginUrl, allowedEmails: ssoConfig.allowedEmails.length });
+  } else if (env.SSO_REQUIRED) {
+    logger.error('SSO_REQUIRED is set but SSO_SECRET / SSO_LOGIN_URL are missing: every request will be refused');
+  } else {
+    logger.warn('Single sign-on is not configured: the API is open to anyone who can reach it');
+  }
+
   const app = createApp({
     checkDb: () => database.isHealthy(),
     checkRclone: () => rcloneClient.checkOnline(),
+    sso: { config: ssoConfig, required: env.SSO_REQUIRED },
     remoteRouter,
     rcloneConfigRouter,
     rcloneSourceRouter,

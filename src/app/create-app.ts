@@ -3,11 +3,15 @@ import type { Router } from 'express';
 import { httpLogger } from '../lib/http-logger.js';
 import { requestContextMiddleware } from '../middlewares/request-context.js';
 import { errorHandler, notFoundHandler } from '../middlewares/error-handler.js';
+import { createSessionHandler, createSsoAuthMiddleware } from '../middlewares/sso-auth.js';
 import { createHealthRouter } from '../modules/health/health.controller.js';
+import type { SessionChecker, SsoConfig } from '../lib/sso.js';
 
 type CreateAppDeps = {
   checkDb: () => Promise<boolean>;
   checkRclone: () => Promise<boolean>;
+  /** Single sign-on; omitted or null leaves the API open (see middlewares/sso-auth.ts). */
+  sso?: { config: SsoConfig | null; required?: boolean; isStillValid?: SessionChecker };
   remoteRouter?: Router;
   rcloneConfigRouter?: Router;
   rcloneSourceRouter?: Router;
@@ -34,6 +38,7 @@ export function createApp(deps: CreateAppDeps) {
   app.use(express.json());
   app.use(requestContextMiddleware);
   app.use(httpLogger);
+  app.use(createSsoAuthMiddleware({ config: deps.sso?.config ?? null, required: deps.sso?.required, isStillValid: deps.sso?.isStillValid }));
 
   app.get('/', (_req, res) => {
     res.json({
@@ -41,6 +46,8 @@ export function createApp(deps: CreateAppDeps) {
       message: 'everDrive backend scaffold is running'
     });
   });
+
+  app.get('/api/auth/session', createSessionHandler(deps.sso?.config ?? null));
 
   app.use(createHealthRouter(deps));
   app.use(deps.rcloneConfigRouter ?? express.Router());

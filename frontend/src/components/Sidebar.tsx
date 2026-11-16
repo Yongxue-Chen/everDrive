@@ -1,3 +1,5 @@
+import { useQuery } from '@tanstack/react-query';
+import { getAuthSession } from '../lib/api';
 import {
   Activity,
   ArrowLeftRight,
@@ -108,6 +110,26 @@ function ThemeSwitch() {
   );
 }
 
+function SessionBadge() {
+  const session = useQuery({ queryKey: ['auth-session'], queryFn: getAuthSession, staleTime: 5 * 60 * 1000, retry: false });
+  const data = session.data;
+  if (!data?.authEnabled || !data.email) {
+    return null;
+  }
+  return (
+    <div className="sidebar__session">
+      <span className="sidebar__session-email" title={data.email}>
+        {data.email}
+      </span>
+      {data.logoutUrl ? (
+        <a className="sidebar__session-logout" href={data.logoutUrl}>
+          退出登录
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
   return (
     <aside className={`sidebar ${open ? 'sidebar--open' : ''}`}>
@@ -133,6 +155,7 @@ export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () =>
           </div>
         ))}
       </nav>
+      <SessionBadge />
       <div className="sidebar__foot">
         <Activity size={14} />
         <span>everDrive</span>
