@@ -101,7 +101,9 @@ describe('RcloneClient', () => {
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(new TypeError('network down'))
-      .mockResolvedValueOnce(createJsonResponse(200, {}));
+      // a blocking transfer is queued as a job, then polled until it finishes
+      .mockResolvedValueOnce(createJsonResponse(200, { jobid: 3 }))
+      .mockResolvedValueOnce(createJsonResponse(200, { finished: true, success: true, output: {} }));
 
     vi.stubGlobal('fetch', fetchMock);
 
@@ -121,7 +123,8 @@ describe('RcloneClient', () => {
     });
 
     expect(result.async).toBe(false);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:5572/job/status', expect.objectContaining({ method: 'POST' }));
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       'http://127.0.0.1:5572/operations/copyfile',
@@ -224,7 +227,9 @@ describe('RcloneClient', () => {
   });
 
   it('includes conservative execution profile in transfer calls', async () => {
-    const fetchMock = vi.fn(async () => createJsonResponse(200, {}));
+    const fetchMock = vi.fn(async (url: string) =>
+      createJsonResponse(200, url.endsWith('/job/status') ? { finished: true, success: true, output: {} } : { jobid: 1 })
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     const client = new RcloneClient({
@@ -348,14 +353,62 @@ describe('RcloneClient', () => {
       expect(Math.min(...waits)).toBeGreaterThanOrEqual(180);
     });
 
-    it('gives recursive listings and blocking transfers the long deadline', async () => {
-      const { fetchMock, waits } = hangingFetch();
-      const client = new RcloneClient(options);
+    /** A daemon whose job finishes after `pollsUntilDone` status checks (never, when Infinity). */
+    function jobFetch(pollsUntilDone: number, finished: Record<string, unknown> = { success: true, output: { list: [{ Path: 'a.txt', Name: 'a.txt', IsDir: false, Size: 1, ModTime: '' }] } }) {
+      const calls: Array<{ method: string; body: Record<string, unknown> }> = [];
+      let polls = 0;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string, init: RequestInit) => {
+          const method = url.replace('http://127.0.0.1:5572/', '');
+          calls.push({ method, body: JSON.parse(String(init.body)) });
+          if (method === 'job/status') {
+            polls += 1;
+            return createJsonResponse(200, polls > pollsUntilDone ? { finished: true, ...finished } : { finished: false, success: false });
+          }
+          return createJsonResponse(200, method === 'job/stop' ? {} : { jobid: 7 });
+        })
+      );
+      return calls;
+    }
+
+    it('runs a recursive listing as a background job and returns its output', async () => {
+      const calls = jobFetch(2);
+      const client = new RcloneClient({ ...options, jobPollIntervalMs: 1 });
+
+      const entries = await client.listEntries('slow:', 'dir', true);
+
+      expect(entries.map((entry) => entry.Path)).toEqual(['a.txt']);
+      expect(calls[0]).toEqual({ method: 'operations/list', body: { fs: 'slow:', remote: 'dir', opt: { recurse: true, showHash: false }, _async: true } });
+      expect(calls.slice(1).map((call) => call.method)).toEqual(['job/status', 'job/status', 'job/status']);
+      expect(calls[1]?.body).toEqual({ jobid: 7 });
+    });
+
+    it('runs a blocking transfer as a background job too', async () => {
+      const calls = jobFetch(0, { success: true, output: {} });
+      const client = new RcloneClient({ ...options, jobPollIntervalMs: 1 });
+
+      await expect(client.sync({ srcFs: '/data', srcRemote: '', dstFs: 'slow:', dstRemote: 'd' })).resolves.toEqual({ async: false, result: {} });
+      expect(calls[0]?.method).toBe('sync/sync');
+      expect(calls[0]?.body._async).toBe(true);
+    });
+
+    it('reports a failed job with the error rclone gave', async () => {
+      jobFetch(0, { success: false, error: 'directory not found' });
+      const client = new RcloneClient({ ...options, jobPollIntervalMs: 1 });
+
+      await expect(client.listEntries('slow:', 'missing', true)).rejects.toMatchObject({ message: 'directory not found' });
+    });
+
+    it('stops a job that overruns the long deadline', async () => {
+      const calls = jobFetch(Infinity);
+      const client = new RcloneClient({ ...options, longTimeoutMs: 200, jobPollIntervalMs: 20 });
+      const startedAt = Date.now();
 
       await expect(client.listEntries('slow:', '', true)).rejects.toMatchObject({ code: 'NETWORK_TIMEOUT' });
-      await expect(client.sync({ srcFs: '/data', srcRemote: '', dstFs: 'slow:', dstRemote: 'd' })).rejects.toMatchObject({ code: 'NETWORK_TIMEOUT' });
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      expect(Math.min(...waits)).toBeGreaterThanOrEqual(550);
+
+      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(180);
+      expect(calls.at(-1)).toEqual({ method: 'job/stop', body: { jobid: 7 } });
     });
 
     it('keeps the short deadline, with retries, for the daemon and for calls that only queue a job', async () => {

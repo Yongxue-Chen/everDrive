@@ -89,6 +89,8 @@ type RcloneClientOptions = {
   remoteTimeoutMs?: number;
   /** Work that scales with the data: recursive listings and blocking transfers. */
   longTimeoutMs?: number;
+  /** How often a background job is polled while waiting for long work. */
+  jobPollIntervalMs?: number;
   retryAttempts?: number;
   retryDelayMs?: number;
   getExecutionProfile?: () => {
@@ -100,6 +102,7 @@ type RcloneClientOptions = {
   };
 };
 
+const MAX_SINGLE_REQUEST_MS = 280_000;
 const LONG_BLOCKING_METHODS = new Set(['operations/copyfile', 'operations/movefile', 'operations/purge']);
 
 type PostOptions = { timeoutMs?: number; retryAttempts?: number; retryOnTimeout?: boolean };
@@ -169,6 +172,7 @@ export class RcloneClient implements IRcloneClient {
   private readonly timeoutMs: number;
   private readonly remoteTimeoutMs: number;
   private readonly longTimeoutMs: number;
+  private readonly jobPollIntervalMs: number;
   private readonly retryAttempts: number;
   private readonly retryDelayMs: number;
   private getExecutionProfile?: RcloneClientOptions['getExecutionProfile'];
@@ -182,8 +186,11 @@ export class RcloneClient implements IRcloneClient {
     this.baseUrl = (options?.baseUrl ?? env.RCLONE_RCD_URL).replace(/\/+$/, '');
     this.timeoutMs = options?.timeoutMs ?? env.RCLONE_HTTP_TIMEOUT_MS;
     // A remote is never given less time than the daemon, and long work never less than a remote.
-    this.remoteTimeoutMs = Math.max(options?.remoteTimeoutMs ?? env.RCLONE_REMOTE_TIMEOUT_MS, this.timeoutMs);
+    // It is also capped: Node's fetch gives up on a response after five minutes whatever
+    // deadline we set, so anything that may take longer runs as a background job instead.
+    this.remoteTimeoutMs = Math.min(Math.max(options?.remoteTimeoutMs ?? env.RCLONE_REMOTE_TIMEOUT_MS, this.timeoutMs), MAX_SINGLE_REQUEST_MS);
     this.longTimeoutMs = Math.max(options?.longTimeoutMs ?? env.RCLONE_LONG_TIMEOUT_MS, this.remoteTimeoutMs);
+    this.jobPollIntervalMs = options?.jobPollIntervalMs ?? 2000;
     this.retryAttempts = options?.retryAttempts ?? env.RCLONE_RETRY_ATTEMPTS;
     this.retryDelayMs = options?.retryDelayMs ?? env.RCLONE_RETRY_DELAY_MS;
     this.getExecutionProfile = options?.getExecutionProfile;
@@ -240,7 +247,10 @@ export class RcloneClient implements IRcloneClient {
   }
 
   async listEntries(fs: string, remote: string, recursive = false): Promise<RcloneListEntry[]> {
-    const response = await this.post<{ list?: RcloneListEntry[] }>('operations/list', { fs, remote, opt: { recurse: recursive, showHash: false } }, recursive ? this.longCall() : this.remoteCall());
+    const body = { fs, remote, opt: { recurse: recursive, showHash: false } };
+    const response = recursive
+      ? await this.runAsJob<{ list?: RcloneListEntry[] }>('operations/list', body)
+      : await this.post<{ list?: RcloneListEntry[] }>('operations/list', body, this.remoteCall());
     return response.list ?? [];
   }
 
@@ -351,9 +361,10 @@ export class RcloneClient implements IRcloneClient {
   ): Promise<RcloneOperationResult> {
     // An async call only queues a job and returns its id; a blocking one waits for the
     // remote, and for transfers that wait grows with the amount of data.
-    const growsWithData = method.startsWith('sync/') || LONG_BLOCKING_METHODS.has(method);
-    const callOptions = payload._async ? undefined : growsWithData ? this.longCall() : this.remoteCall();
-    const response = await this.post<{ jobid?: number } & Record<string, unknown>>(method, payload, callOptions);
+    if (!payload._async && (method.startsWith('sync/') || LONG_BLOCKING_METHODS.has(method))) {
+      return { async: false, result: await this.runAsJob<Record<string, unknown>>(method, payload) };
+    }
+    const response = await this.post<{ jobid?: number } & Record<string, unknown>>(method, payload, payload._async ? undefined : this.remoteCall());
 
     if (payload._async) {
       if (typeof response.jobid !== 'number') {
@@ -398,8 +409,36 @@ export class RcloneClient implements IRcloneClient {
     return { timeoutMs: this.remoteTimeoutMs, retryOnTimeout: false };
   }
 
-  private longCall(): PostOptions {
-    return { timeoutMs: this.longTimeoutMs, retryOnTimeout: false };
+  /**
+   * Runs a call as an rclone background job and waits for it, up to the long deadline.
+   * Work that grows with the data (a recursive listing of a slow remote, a blocking
+   * transfer) can outlast any single HTTP request, so it is queued and polled instead;
+   * if it overruns, the job is stopped rather than left running in the daemon.
+   */
+  private async runAsJob<TResult extends Record<string, unknown>>(method: string, body: Record<string, unknown>): Promise<TResult> {
+    const startedAt = Date.now();
+    const queued = await this.post<{ jobid?: number }>(method, { ...body, _async: true });
+    const jobId = queued.jobid;
+    if (typeof jobId !== 'number') {
+      throw new RcloneClientError({ code: 'RCLONE_API_ERROR', message: `rclone async call missing job id for ${method}`, method, responseBody: queued });
+    }
+
+    for (;;) {
+      const status = await this.getJobStatus(jobId);
+      if (status.finished) {
+        if (!status.success) {
+          throw this.mapResponseError(method, 500, { error: status.error || `rclone job ${jobId} failed` });
+        }
+        this.log.info('rclone job finished', { method, jobId, durationMs: Date.now() - startedAt });
+        return (status.output ?? {}) as TResult;
+      }
+      if (Date.now() - startedAt >= this.longTimeoutMs) {
+        await this.post('job/stop', { jobid: jobId }).catch(() => undefined);
+        this.log.error('rclone job overran its deadline and was stopped', { method, jobId, timeoutMs: this.longTimeoutMs });
+        throw new RcloneClientError({ code: 'NETWORK_TIMEOUT', message: `rclone job for ${method} did not finish within ${this.longTimeoutMs} ms`, method });
+      }
+      await sleep(this.jobPollIntervalMs);
+    }
   }
 
   private async post<TResult extends Record<string, unknown>>(method: string, body: Record<string, unknown>, options?: PostOptions): Promise<TResult> {
